@@ -98,18 +98,7 @@
             border: 3px solid #1E711E; /* Darker green */
             box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
             z-index: 5;
-        }
-
-        .obstacle.top {
-            top: 0;
-            border-bottom: none;
-            border-bottom-left-radius: 8px;
-            border-bottom-right-radius: 8px;
-        }
-
-        .obstacle.bottom {
-            bottom: 0;
-            border-top: none;
+            bottom: 0; /* Always anchored to the bottom */
             border-top-left-radius: 8px;
             border-top-right-radius: 8px;
         }
@@ -174,6 +163,50 @@
 
         #restart-button:hover {
             background-color: #45a049;
+        }
+
+        #pause-button {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 8px 15px;
+            font-size: 18px;
+            background-color: rgba(0,0,0,0.4);
+            color: white;
+            border: 2px solid #777;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 20;
+            font-family: 'Press Start 2P', cursive;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+
+        #pause-button:hover {
+            background-color: rgba(0,0,0,0.6);
+            border-color: #fff;
+        }
+
+        #pause-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 50px;
+            font-weight: bold;
+            z-index: 90; /* Below game over, above everything else */
+            pointer-events: none; /* Allow clicks to pass through when not shown */
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        #pause-overlay.show {
+            opacity: 1;
+            pointer-events: auto; /* Block clicks when shown */
         }
 
         /* --- Touchpad Styles (Default: Hidden) --- */
@@ -258,6 +291,17 @@
                 font-size: 18px;
             }
 
+            #pause-button {
+                font-size: 14px;
+                padding: 6px 12px;
+                top: 10px;
+                right: 10px;
+            }
+
+            #pause-overlay {
+                font-size: 40px;
+            }
+
             /* Show and style touchpad for mobile */
             #touchpad-container {
                 display: grid;
@@ -287,6 +331,8 @@
                 <span id="expression-display"></span>
             </div>
             <div id="score-display">Score: 0</div>
+            <button id="pause-button">Pause</button>
+            <div id="pause-overlay">PAUSED</div>
             <div id="game-over-screen">
                 Game Over!
                 <div id="final-score">Score: 0</div>
@@ -324,6 +370,8 @@
         const restartButton = document.getElementById('restart-button');
         const ground = document.getElementById('ground');
         const touchpadButtons = document.querySelectorAll('.touchpad-button');
+        const pauseButton = document.getElementById('pause-button');
+        const pauseOverlay = document.getElementById('pause-overlay');
 
         // Audio elements
         const correctSound = document.getElementById('correct-sound');
@@ -338,7 +386,8 @@
         let MATH_BOT_HEIGHT;
         let GROUND_HEIGHT;
         let OBSTACLE_WIDTH;
-        let GAP_HEIGHT; // Height of the gap between top and bottom obstacles
+        let MIN_OBSTACLE_HEIGHT; // Minimum height of the bottom obstacle
+        let MAX_OBSTACLE_CLEARANCE; // Max space from ground the *top* of obstacle can be
         const OBSTACLE_SPAWN_INTERVAL = 2000; // milliseconds between new obstacles
 
         // Mobile specific constants for JS calculations (matching CSS where applicable)
@@ -346,16 +395,19 @@
         const MATH_BOT_WIDTH_DESKTOP = 70;
         const MATH_BOT_HEIGHT_DESKTOP = 50;
         const OBSTACLE_WIDTH_DESKTOP = 80;
-        const GAP_HEIGHT_DESKTOP = 180;
+        const MIN_OBSTACLE_HEIGHT_DESKTOP = 50;
+        const MAX_OBSTACLE_CLEARANCE_DESKTOP = 180; // Min vertical space above obstacle for bot to fly
 
         const MATH_BOT_WIDTH_MOBILE = 50;
         const MATH_BOT_HEIGHT_MOBILE = 40;
         const OBSTACLE_WIDTH_MOBILE = 60;
-        const GAP_HEIGHT_MOBILE = 150; // Smaller gap for smaller screens
+        const MIN_OBSTACLE_HEIGHT_MOBILE = 40;
+        const MAX_OBSTACLE_CLEARANCE_MOBILE = 120; // Smaller clearance for mobile
 
         // Game variables (will be initialized in startGame)
         let gameStarted = false;
         let gameOver = false;
+        let isPaused = false; // New state variable for pause
         let mathBotY;
         let mathBotVelocity;
         let score;
@@ -380,7 +432,8 @@
             MATH_BOT_WIDTH = isMobile ? MATH_BOT_WIDTH_MOBILE : MATH_BOT_WIDTH_DESKTOP;
             MATH_BOT_HEIGHT = isMobile ? MATH_BOT_HEIGHT_MOBILE : MATH_BOT_HEIGHT_DESKTOP;
             OBSTACLE_WIDTH = isMobile ? OBSTACLE_WIDTH_MOBILE : OBSTACLE_WIDTH_DESKTOP;
-            GAP_HEIGHT = isMobile ? GAP_HEIGHT_MOBILE : GAP_HEIGHT_DESKTOP;
+            MIN_OBSTACLE_HEIGHT = isMobile ? MIN_OBSTACLE_HEIGHT_MOBILE : MIN_OBSTACLE_HEIGHT_DESKTOP;
+            MAX_OBSTACLE_CLEARANCE = isMobile ? MAX_OBSTACLE_CLEARANCE_MOBILE : MAX_OBSTACLE_CLEARANCE_DESKTOP;
 
             // Ensure Math-Bot's CSS dimensions match the JS values for accurate collision
             mathBot.style.width = `${MATH_BOT_WIDTH}px`;
@@ -440,41 +493,27 @@
 
         // --- Obstacle Logic ---
         function createObstacle() {
-            // Ensure gap is within playable area and enough space for Math-Bot
-            const minGapY = MATH_BOT_HEIGHT * 2; // Minimum space from top
-            const maxGapY = GAME_HEIGHT - GROUND_HEIGHT - (MATH_BOT_HEIGHT * 2) - GAP_HEIGHT; // Max gap top position from bottom
+            // Calculate max possible height for the bottom obstacle
+            // It must leave enough room for the bot to fly over, plus some buffer.
+            const maxAllowedObstacleHeight = GAME_HEIGHT - GROUND_HEIGHT - MATH_BOT_HEIGHT - MAX_OBSTACLE_CLEARANCE;
 
-            // Random vertical center of the gap
-            const gapTop = Math.floor(Math.random() * (maxGapY - minGapY + 1)) + minGapY;
-
-            // Calculate heights for top and bottom parts of the obstacle
-            const topHeight = gapTop;
-            const bottomHeight = GAME_HEIGHT - GROUND_HEIGHT - (gapTop + GAP_HEIGHT);
+            // Random height for the obstacle, clamped by min and max allowed
+            const obstacleHeight = Math.floor(Math.random() * (maxAllowedObstacleHeight - MIN_OBSTACLE_HEIGHT + 1)) + MIN_OBSTACLE_HEIGHT;
 
             const obstacleX = GAME_WIDTH;
 
-            // Create top obstacle div
-            const topObstacleDiv = document.createElement('div');
-            topObstacleDiv.classList.add('obstacle', 'top');
-            topObstacleDiv.style.width = `${OBSTACLE_WIDTH}px`;
-            topObstacleDiv.style.height = `${topHeight}px`;
-            topObstacleDiv.style.left = `${obstacleX}px`;
-            gameContainer.appendChild(topObstacleDiv);
-
-            // Create bottom obstacle div
-            const bottomObstacleDiv = document.createElement('div');
-            bottomObstacleDiv.classList.add('obstacle', 'bottom');
-            bottomObstacleDiv.style.width = `${OBSTACLE_WIDTH}px`;
-            bottomObstacleDiv.style.height = `${bottomHeight}px`;
-            bottomObstacleDiv.style.left = `${obstacleX}px`;
-            gameContainer.appendChild(bottomObstacleDiv);
+            // Create the single bottom obstacle div
+            const obstacleDiv = document.createElement('div');
+            obstacleDiv.classList.add('obstacle'); // Only one class now
+            obstacleDiv.style.width = `${OBSTACLE_WIDTH}px`;
+            obstacleDiv.style.height = `${obstacleHeight}px`;
+            obstacleDiv.style.left = `${obstacleX}px`;
+            gameContainer.appendChild(obstacleDiv);
 
             obstacles.push({
                 x: obstacleX,
-                topHeight: topHeight,
-                bottomHeight: bottomHeight, // This is the actual height of the bottom pipe
-                elementTop: topObstacleDiv,
-                elementBottom: bottomObstacleDiv,
+                height: obstacleHeight, // Store the height of this single obstacle
+                element: obstacleDiv, // Reference to the DOM element
                 passed: false // To track if Math-Bot has passed for scoring
             });
         }
@@ -482,8 +521,7 @@
         function updateObstacles() {
             obstacles.forEach(obstacle => {
                 obstacle.x -= gameSpeed;
-                obstacle.elementTop.style.left = `${obstacle.x}px`;
-                obstacle.elementBottom.style.left = `${obstacle.x}px`;
+                obstacle.element.style.left = `${obstacle.x}px`;
 
                 // Check if Math-Bot has passed the obstacle's origin (left edge of Math-Bot passed right edge of obstacle)
                 if (!obstacle.passed && mathBot.offsetLeft > obstacle.x + OBSTACLE_WIDTH) {
@@ -491,7 +529,7 @@
                     scoreDisplay.textContent = `Score: ${score}`;
                     obstacle.passed = true;
                     // Increase difficulty gradually
-                    // Cap game speed at 5, gravity increases, flap strength slightly decreases
+                    // Cap game speed, gravity increases, flap strength slightly decreases
                     if (score % 500 === 0 && gameSpeed < 5) {
                         gameSpeed += 0.2;
                         gravity += 0.02;
@@ -504,8 +542,7 @@
             // Remove obstacles that are off-screen
             obstacles = obstacles.filter(obstacle => {
                 if (obstacle.x + OBSTACLE_WIDTH < 0) {
-                    obstacle.elementTop.remove();
-                    obstacle.elementBottom.remove();
+                    obstacle.element.remove();
                     return false;
                 }
                 return true;
@@ -541,11 +578,9 @@
 
                 // Check for horizontal overlap
                 if (mathBotRect.x + mathBotRect.width > obstacleX && mathBotRect.x < obstacleX + obstacleWidth) {
-                    // Calculate bottom pipe's actual Y coordinate
-                    const bottomPipeY = GAME_HEIGHT - GROUND_HEIGHT - obstacle.bottomHeight;
-
-                    // Check for vertical overlap with top pipe or bottom pipe
-                    if (mathBotRect.y < obstacle.topHeight || mathBotRect.y + mathBotRect.height > bottomPipeY) {
+                    // Check for vertical overlap with the top of the bottom obstacle
+                    // The top of the bottom obstacle is at (GAME_HEIGHT - GROUND_HEIGHT - obstacle.height)
+                    if (mathBotRect.y + mathBotRect.height > (GAME_HEIGHT - GROUND_HEIGHT - obstacle.height)) {
                         return true;
                     }
                 }
@@ -556,7 +591,7 @@
 
         // --- Game Loop ---
         function gameLoop() {
-            if (gameOver) return;
+            if (gameOver || isPaused) return; // Exit if game is over or paused
 
             // Update Math-Bot position
             mathBotVelocity += gravity;
@@ -591,6 +626,7 @@
             if (gameStarted) return; // Prevent starting multiple times
             gameStarted = true;
             gameOver = false;
+            isPaused = false; // Ensure game is not paused when starting
 
             // Update constants based on current screen size
             updateGameConstants();
@@ -610,6 +646,8 @@
             mathBot.style.top = `${mathBotY}px`;
             mathBot.style.left = `${GAME_WIDTH * 0.125}px`; // Keep bot at 1/8th width position
             gameOverScreen.classList.remove('show');
+            pauseOverlay.classList.remove('show'); // Hide pause overlay
+            pauseButton.textContent = 'Pause'; // Reset pause button text
 
             // Remove any existing obstacles from previous game
             document.querySelectorAll('.obstacle').forEach(el => el.remove());
@@ -630,15 +668,34 @@
 
             finalScoreDisplay.textContent = `Score: ${score}`;
             gameOverScreen.classList.add('show');
+            pauseButton.style.display = 'none'; // Hide pause button on game over
         }
 
         function restartGame() {
+            pauseButton.style.display = 'block'; // Show pause button again
             startGame();
+        }
+
+        function togglePause() {
+            if (!gameStarted || gameOver) return; // Only allow pausing during an active game
+
+            isPaused = !isPaused;
+            if (isPaused) {
+                cancelAnimationFrame(animationFrameId); // Stop the game loop
+                pauseButton.textContent = 'Resume';
+                pauseOverlay.classList.add('show');
+                stopMusic(); // Pause music
+            } else {
+                animationFrameId = requestAnimationFrame(gameLoop); // Resume the game loop
+                pauseButton.textContent = 'Pause';
+                pauseOverlay.classList.remove('show');
+                startMusic(); // Resume music
+            }
         }
 
         // --- Input Handling Logic ---
         function handleAnswerInput(inputNumber) {
-            if (gameOver) return; // Ignore input if game is over
+            if (gameOver || isPaused) return; // Ignore input if game is over or paused
 
             if (!gameStarted) {
                 startGame(); // Start game on the first valid key press
@@ -677,6 +734,7 @@
         });
 
         restartButton.addEventListener('click', restartGame);
+        pauseButton.addEventListener('click', togglePause);
 
         // Initial setup on load (don't start the game until first key press)
         document.addEventListener('DOMContentLoaded', () => {
@@ -687,6 +745,7 @@
             // Display a welcome message
             expressionDisplay.textContent = "Press 1-9 to Start!";
             scoreDisplay.textContent = "Score: 0";
+            pauseButton.style.display = 'block'; // Ensure pause button is visible initially
         });
 
         // Re-evaluate game constants on window resize to ensure responsiveness
