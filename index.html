@@ -262,14 +262,14 @@
             if (Math.random() < 0.5) { // Addition
                 operator = '+';
                 // operand1 (1-8), operand2 (1 to 9-operand1), sum 1-9
-                num1 = Math.floor(Math.random() * 8) + 1;
-                num2 = Math.floor(Math.random() * (9 - num1)) + 1;
+                num1 = Math.floor(Math.random() * 8) + 1; // num1 will be 1 to 8
+                num2 = Math.floor(Math.random() * (9 - num1)) + 1; // num2 will be 1 to (9 - num1)
                 result = num1 + num2;
             } else { // Subtraction
                 operator = '-';
                 // operand1 (2-9), operand2 (1 to operand1-1), result 1-9
-                num1 = Math.floor(Math.random() * 8) + 2;
-                num2 = Math.floor(Math.random() * (num1 - 1)) + 1;
+                num1 = Math.floor(Math.random() * 8) + 2; // num1 will be 2 to 9
+                num2 = Math.floor(Math.random() * (num1 - 1)) + 1; // num2 will be 1 to (num1 - 1)
                 result = num1 - num2;
             }
 
@@ -438,7 +438,7 @@
             obstacles = [];
             gameSpeed = 2; // Initial horizontal speed
             gravity = 0.05; // *** REDUCED GRAVITY ***
-            flapStrength = .5; // *** ADJUSTED FLAP STRENGTH ***
+            flapStrength = .8; // *** ADJUSTED FLAP STRENGTH ***
             downwardNudge = .25; // *** ADJUSTED DOWNWARD NUDGE ***
             lastObstacleSpawnTime = Date.now();
 
