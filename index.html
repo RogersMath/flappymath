@@ -87,7 +87,6 @@
             padding: 5px;
             background-color: rgba(255, 255, 255, 0.8);
             border-radius: 4px;
-            /* min-width removed to allow natural sizing based on content */
             text-align: center;
             white-space: nowrap; /* Crucial fix: Prevents text from wrapping */
         }
@@ -354,13 +353,6 @@
         </div>
     </div>
 
-    <!-- Audio Elements - These are placeholder URLs. For a production game,
-         you would replace these with your own local audio files. -->
-    <audio id="correct-sound" src="https://www.soundjay.com/button/button-3.wav" preload="auto"></audio>
-    <audio id="incorrect-sound" src="https://www.soundjay.com/misc/fail-buzzer-01.wav" preload="auto"></audio>
-    <audio id="crash-sound" src="https://www.soundjay.com/transport/car-crash-1.wav" preload="auto"></audio>
-    <audio id="background-music" src="https://www.soundjay.com/music/music-1.wav" preload="auto" loop></audio>
-
     <script>
         const gameContainer = document.getElementById('game-container');
         const mathBot = document.getElementById('math-bot');
@@ -374,11 +366,11 @@
         const pauseButton = document.getElementById('pause-button');
         const pauseOverlay = document.getElementById('pause-overlay');
 
-        // Audio elements
-        const correctSound = document.getElementById('correct-sound');
-        const incorrectSound = document.getElementById('incorrect-sound');
-        const crashSound = document.getElementById('crash-sound');
-        const backgroundMusic = document.getElementById('background-music');
+        // --- AudioContext Variables ---
+        let audioContext;
+        const audioBuffers = {}; // Stores decoded AudioBuffer objects
+        let musicSource = null; // Current AudioBufferSourceNode for background music
+        let musicGainNode = null; // GainNode for background music volume
 
         // Game constants (will be initialized/updated in updateGameConstants)
         let GAME_WIDTH;
@@ -422,6 +414,86 @@
         let lastObstacleSpawnTime;
         let animationFrameId; // To control requestAnimationFrame
 
+        // --- Audio Functions ---
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            // Resume context if it's suspended (common for initial user interaction)
+            if (audioContext.state === 'suspended') {
+                audioContext.resume().catch(e => console.error("AudioContext resume failed:", e));
+            }
+        }
+
+        async function loadAudio(url, name) {
+            try {
+                const response = await fetch(url);
+                const arrayBuffer = await response.arrayBuffer();
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                audioBuffers[name] = audioBuffer;
+            } catch (error) {
+                console.error(`Error loading audio file ${url}:`, error);
+            }
+        }
+
+        function playShortSound(bufferName) {
+            if (!audioContext || !audioBuffers[bufferName]) {
+                console.warn(`Audio buffer for '${bufferName}' not loaded or AudioContext not initialized.`);
+                return;
+            }
+            const source = audioContext.createBufferSource();
+            source.buffer = audioBuffers[bufferName];
+            source.connect(audioContext.destination);
+            source.start(0); // Play immediately
+        }
+
+        function startBackgroundMusic() {
+            if (!audioContext || !audioBuffers['backgroundMusic']) {
+                console.warn("Background music buffer not loaded or AudioContext not initialized.");
+                return;
+            }
+
+            // Stop existing music source if any
+            if (musicSource) {
+                musicSource.stop();
+                musicSource.disconnect();
+            }
+
+            // Create new source and gain node
+            musicSource = audioContext.createBufferSource();
+            musicGainNode = audioContext.createGain();
+
+            musicSource.buffer = audioBuffers['backgroundMusic'];
+            musicSource.loop = true; // Loop the music
+            musicGainNode.gain.value = 0.3; // Set desired volume
+
+            musicSource.connect(musicGainNode);
+            musicGainNode.connect(audioContext.destination);
+
+            musicSource.start(0); // Play immediately
+        }
+
+        function stopBackgroundMusic() {
+            if (musicSource) {
+                musicSource.stop();
+                musicSource.disconnect(); // Disconnect to clean up
+                musicSource = null; // Clear reference
+            }
+        }
+
+        // Wrapper for game logic calls to play sounds
+        function playSound(soundName) {
+            playShortSound(soundName);
+        }
+
+        function startMusic() {
+            startBackgroundMusic();
+        }
+
+        function stopMusic() {
+            stopBackgroundMusic();
+        }
+
         // --- Update Game Dimensions based on screen size ---
         function updateGameConstants() {
             GAME_WIDTH = gameContainer.offsetWidth;
@@ -442,22 +514,6 @@
 
             // Ground height is fixed in CSS, grab its current computed height
             GROUND_HEIGHT = ground.offsetHeight;
-        }
-
-        // --- Audio Functions ---
-        function playSound(audioElement) {
-            audioElement.currentTime = 0; // Rewind to start for quick successive plays
-            audioElement.play().catch(e => console.error("Audio playback failed:", e));
-        }
-
-        function startMusic() {
-            backgroundMusic.volume = 0.3; // Lower volume for background music
-            backgroundMusic.play().catch(e => console.error("Music playback failed:", e));
-        }
-
-        function stopMusic() {
-            backgroundMusic.pause();
-            backgroundMusic.currentTime = 0;
         }
 
         // --- Visual Feedback Functions ---
@@ -629,6 +685,9 @@
             gameOver = false;
             isPaused = false; // Ensure game is not paused when starting
 
+            // Initialize/resume AudioContext on first game start
+            initAudioContext();
+
             // Update constants based on current screen size
             updateGameConstants();
 
@@ -666,7 +725,7 @@
             gameStarted = false;
             cancelAnimationFrame(animationFrameId); // Stop the game loop
             stopMusic();
-            playSound(crashSound);
+            playSound('crashSound'); // Play crash sound
 
             finalScoreDisplay.textContent = `Score: ${score}`;
             gameOverScreen.classList.add('show');
@@ -687,7 +746,14 @@
                 pauseButton.textContent = 'Resume';
                 pauseOverlay.classList.add('show');
                 stopMusic(); // Pause music
+                if (audioContext.state === 'running') { // Pause AudioContext itself if running
+                    audioContext.suspend().catch(e => console.error("AudioContext suspend failed:", e));
+                }
             } else {
+                // Resume AudioContext first if suspended
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume().catch(e => console.error("AudioContext resume failed:", e));
+                }
                 animationFrameId = requestAnimationFrame(gameLoop); // Resume the game loop
                 pauseButton.textContent = 'Pause';
                 pauseOverlay.classList.remove('show');
@@ -699,6 +765,9 @@
         function handleAnswerInput(inputNumber) {
             if (gameOver || isPaused) return; // Ignore input if game is over or paused
 
+            // Initialize/resume AudioContext on first user interaction if not already
+            initAudioContext();
+
             if (!gameStarted) {
                 startGame(); // Start game on the first valid key press
                 return;
@@ -707,14 +776,14 @@
             if (inputNumber === correctAnswer) {
                 // Correct answer
                 mathBotVelocity = -flapStrength; // Upward boost
-                playSound(correctSound);
+                playSound('correctSound'); // Play correct sound
                 applyFlash('flash-green');
                 score += 50; // Bonus points for correct answer
                 generateExpression(); // New problem
             } else {
                 // Incorrect answer
                 mathBotVelocity += downwardNudge; // Slight downward nudge
-                playSound(incorrectSound);
+                playSound('incorrectSound'); // Play incorrect sound
                 applyFlash('flash-red');
                 // Expression remains until correct answer
             }
@@ -741,7 +810,18 @@
         pauseButton.addEventListener('click', togglePause);
 
         // Initial setup on load (don't start the game until first key press)
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Initialize AudioContext immediately so audio files can start loading
+            initAudioContext(); // This will create the context, but it might be suspended.
+
+            // Load all audio files
+            await Promise.all([
+                loadAudio('https://www.soundjay.com/button/button-3.wav', 'correctSound'),
+                loadAudio('https://www.soundjay.com/misc/fail-buzzer-01.wav', 'incorrectSound'),
+                loadAudio('https://www.soundjay.com/transport/car-crash-1.wav', 'crashSound'),
+                loadAudio('./backgroundMusic.mp3', 'backgroundMusic') // User's local file
+            ]);
+
             updateGameConstants(); // Set initial dimensions
             mathBotY = GAME_HEIGHT / 2 - MATH_BOT_HEIGHT / 2; // Position Math-Bot initially
             mathBot.style.top = `${mathBotY}px`;
