@@ -209,6 +209,94 @@
             pointer-events: auto; /* Block clicks when shown */
         }
 
+        /* --- Start/Settings Menu --- */
+        #start-settings-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 30px;
+            font-weight: bold;
+            z-index: 110; /* Above all game elements */
+            text-align: center;
+            /* Initially visible */
+            opacity: 1;
+            pointer-events: auto;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #start-settings-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #settings-form {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 15px 20px;
+            margin: 30px 0;
+            background-color: rgba(255,255,255,0.1);
+            padding: 30px;
+            border-radius: 10px;
+            border: 2px solid #888;
+            max-width: 90%;
+            overflow-y: auto; /* For potential scroll on smaller screens */
+            max-height: 80vh; /* Limit height on smaller screens */
+        }
+
+        #settings-form label {
+            text-align: right;
+            padding-top: 5px;
+            font-size: 18px;
+        }
+
+        #settings-form input[type="number"] {
+            width: 120px;
+            padding: 8px;
+            font-size: 16px;
+            font-family: 'Press Start 2P', cursive;
+            background-color: #444;
+            color: white;
+            border: 2px solid #777;
+            border-radius: 4px;
+            box-sizing: border-box; /* Include padding in width */
+        }
+
+        #settings-form input[type="number"]:focus {
+            border-color: #FFD700;
+            outline: none;
+        }
+
+        #menu-buttons {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .menu-button {
+            padding: 15px 30px;
+            font-size: 24px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            font-family: 'Press Start 2P', cursive;
+            min-width: 250px;
+        }
+
+        .menu-button:hover {
+            background-color: #45a049;
+        }
+
         /* --- Touchpad Styles (Default: Hidden) --- */
         #touchpad-container {
             display: none; /* Hidden by default on desktop */
@@ -302,6 +390,32 @@
                 font-size: 40px;
             }
 
+            #start-settings-screen h1 {
+                font-size: 24px;
+            }
+
+            #settings-form {
+                gap: 10px 10px;
+                padding: 15px;
+                max-width: 95%;
+            }
+
+            #settings-form label {
+                font-size: 14px;
+            }
+
+            #settings-form input[type="number"] {
+                width: 80px;
+                padding: 5px;
+                font-size: 14px;
+            }
+
+            .menu-button {
+                padding: 10px 20px;
+                font-size: 18px;
+                min-width: 180px;
+            }
+
             /* Show and style touchpad for mobile */
             #touchpad-container {
                 display: grid;
@@ -338,6 +452,36 @@
                 <div id="final-score">Score: 0</div>
                 <button id="restart-button">Restart Game</button>
             </div>
+
+            <div id="start-settings-screen">
+                <h1 id="menu-title">Flappy Equations</h1>
+                <form id="settings-form">
+                    <label for="input-gameSpeed">Game Speed:</label>
+                    <input type="number" id="input-gameSpeed" step="0.1">
+
+                    <label for="input-gravity">Gravity:</label>
+                    <input type="number" id="input-gravity" step="0.005">
+
+                    <label for="input-flapStrength">Flap Strength:</label>
+                    <input type="number" id="input-flapStrength" step="0.1">
+
+                    <label for="input-downwardNudge">Incorrect Nudge:</label>
+                    <input type="number" id="input-downwardNudge" step="0.05">
+
+                    <label for="input-obstacleSpawnInterval">Obstacle Interval (ms):</label>
+                    <input type="number" id="input-obstacleSpawnInterval" step="100">
+
+                    <label for="input-minObstacleHeight">Min Obstacle Height:</label>
+                    <input type="number" id="input-minObstacleHeight" step="10">
+
+                    <label for="input-maxObstacleClearance">Min Clearance Above Obstacle:</label>
+                    <input type="number" id="input-maxObstacleClearance" step="10">
+                </form>
+                <div id="menu-buttons">
+                    <button id="start-game-button" class="menu-button">Start Game</button>
+                    <button id="apply-settings-button" class="menu-button" style="display:none;">Apply Settings & Resume</button>
+                </div>
+            </div>
         </div>
 
         <div id="touchpad-container">
@@ -366,53 +510,69 @@
         const pauseButton = document.getElementById('pause-button');
         const pauseOverlay = document.getElementById('pause-overlay');
 
+        const startSettingsScreen = document.getElementById('start-settings-screen');
+        const menuTitle = document.getElementById('menu-title');
+        const settingsForm = document.getElementById('settings-form');
+        const startGameButton = document.getElementById('start-game-button');
+        const applySettingsButton = document.getElementById('apply-settings-button');
+
+        // Input elements for tuning
+        const inputGameSpeed = document.getElementById('input-gameSpeed');
+        const inputGravity = document.getElementById('input-gravity');
+        const inputFlapStrength = document.getElementById('input-flapStrength');
+        const inputDownwardNudge = document.getElementById('input-downwardNudge');
+        const inputObstacleSpawnInterval = document.getElementById('input-obstacleSpawnInterval');
+        const inputMinObstacleHeight = document.getElementById('input-minObstacleHeight');
+        const inputMaxObstacleClearance = document.getElementById('input-maxObstacleClearance');
+
+
         // --- AudioContext Variables ---
         let audioContext;
         const audioBuffers = {}; // Stores decoded AudioBuffer objects
         let musicSource = null; // Current AudioBufferSourceNode for background music
         let musicGainNode = null; // GainNode for background music volume
 
-        // Game constants (will be initialized/updated in updateGameConstants)
+        // Game constants (now tunable)
         let GAME_WIDTH;
         let GAME_HEIGHT;
         let MATH_BOT_WIDTH;
         let MATH_BOT_HEIGHT;
         let GROUND_HEIGHT;
         let OBSTACLE_WIDTH;
-        let MIN_OBSTACLE_HEIGHT; // Minimum height of the bottom obstacle
-        let MAX_OBSTACLE_CLEARANCE; // Max space from ground the *top* of obstacle can be
-        const OBSTACLE_SPAWN_INTERVAL = 2000; // milliseconds between new obstacles
+
+        // Tunable game parameters with initial defaults
+        let initialGameSpeed = 2;
+        let gravity = 0.05;
+        let flapStrength = 8;
+        let downwardNudge = 0.25;
+        let obstacleSpawnInterval = 2000; // milliseconds
+        let minObstacleHeight = 50; // Desktop default
+        let maxObstacleClearance = 180; // Desktop default (Min vertical space above obstacle for bot to fly)
+
 
         // Mobile specific constants for JS calculations (matching CSS where applicable)
         const MOBILE_MAX_WIDTH = 768; // Matches CSS media query breakpoint
-        const MATH_BOT_WIDTH_DESKTOP = 90; // Increased width for desktop to fit expressions
+        const MATH_BOT_WIDTH_DESKTOP = 90;
         const MATH_BOT_HEIGHT_DESKTOP = 50;
         const OBSTACLE_WIDTH_DESKTOP = 80;
-        const MIN_OBSTACLE_HEIGHT_DESKTOP = 50;
-        const MAX_OBSTACLE_CLEARANCE_DESKTOP = 180; // Min vertical space above obstacle for bot to fly
 
-        const MATH_BOT_WIDTH_MOBILE = 65; // Increased width for mobile
+        const MATH_BOT_WIDTH_MOBILE = 65;
         const MATH_BOT_HEIGHT_MOBILE = 40;
         const OBSTACLE_WIDTH_MOBILE = 60;
-        const MIN_OBSTACLE_HEIGHT_MOBILE = 40;
-        const MAX_OBSTACLE_CLEARANCE_MOBILE = 120; // Smaller clearance for mobile
 
-        // Game variables (will be initialized in startGame)
+
+        // Game variables
         let gameStarted = false;
         let gameOver = false;
-        let isPaused = false; // New state variable for pause
+        let isPaused = false;
         let mathBotY;
         let mathBotVelocity;
         let score;
         let currentExpression;
         let correctAnswer;
         let obstacles = [];
-        let gameSpeed;
-        let gravity;
-        let flapStrength;
-        let downwardNudge;
         let lastObstacleSpawnTime;
-        let animationFrameId; // To control requestAnimationFrame
+        let animationFrameId;
 
         // --- Audio Functions ---
         function initAudioContext() {
@@ -437,8 +597,8 @@
         }
 
         function playShortSound(bufferName) {
-            if (!audioContext || !audioBuffers[bufferName]) {
-                console.warn(`Audio buffer for '${bufferName}' not loaded or AudioContext not initialized.`);
+            if (!audioContext || !audioBuffers[bufferName] || audioContext.state === 'suspended') {
+                // console.warn(`Audio buffer for '${bufferName}' not loaded, AudioContext suspended, or not initialized.`);
                 return;
             }
             const source = audioContext.createBufferSource();
@@ -448,8 +608,8 @@
         }
 
         function startBackgroundMusic() {
-            if (!audioContext || !audioBuffers['backgroundMusic']) {
-                console.warn("Background music buffer not loaded or AudioContext not initialized.");
+            if (!audioContext || !audioBuffers['backgroundMusic'] || audioContext.state === 'suspended') {
+                // console.warn("Background music buffer not loaded or AudioContext not initialized/suspended.");
                 return;
             }
 
@@ -505,9 +665,7 @@
             MATH_BOT_WIDTH = isMobile ? MATH_BOT_WIDTH_MOBILE : MATH_BOT_WIDTH_DESKTOP;
             MATH_BOT_HEIGHT = isMobile ? MATH_BOT_HEIGHT_MOBILE : MATH_BOT_HEIGHT_DESKTOP;
             OBSTACLE_WIDTH = isMobile ? OBSTACLE_WIDTH_MOBILE : OBSTACLE_WIDTH_DESKTOP;
-            MIN_OBSTACLE_HEIGHT = isMobile ? MIN_OBSTACLE_HEIGHT_MOBILE : MIN_OBSTACLE_HEIGHT_DESKTOP;
-            MAX_OBSTACLE_CLEARANCE = isMobile ? MAX_OBSTACLE_CLEARANCE_MOBILE : MAX_OBSTACLE_CLEARANCE_DESKTOP;
-
+            
             // Ensure Math-Bot's CSS dimensions match the JS values for accurate collision
             mathBot.style.width = `${MATH_BOT_WIDTH}px`;
             mathBot.style.height = `${MATH_BOT_HEIGHT}px`;
@@ -552,16 +710,16 @@
         function createObstacle() {
             // Calculate max possible height for the bottom obstacle
             // It must leave enough room for the bot to fly over, plus some buffer.
-            const maxAllowedObstacleHeight = GAME_HEIGHT - GROUND_HEIGHT - MATH_BOT_HEIGHT - MAX_OBSTACLE_CLEARANCE;
+            const maxAllowedObstacleHeight = GAME_HEIGHT - GROUND_HEIGHT - MATH_BOT_HEIGHT - maxObstacleClearance;
 
-            // Random height for the obstacle, clamped by min and max allowed
-            const obstacleHeight = Math.floor(Math.random() * (maxAllowedObstacleHeight - MIN_OBSTACLE_HEIGHT + 1)) + MIN_OBSTACLE_HEIGHT;
+            // Random height for the obstacle, clamped by user's minObstacleHeight and maxAllowedObstacleHeight
+            const obstacleHeight = Math.floor(Math.random() * (maxAllowedObstacleHeight - minObstacleHeight + 1)) + minObstacleHeight;
 
             const obstacleX = GAME_WIDTH;
 
             // Create the single bottom obstacle div
             const obstacleDiv = document.createElement('div');
-            obstacleDiv.classList.add('obstacle'); // Only one class now
+            obstacleDiv.classList.add('obstacle');
             obstacleDiv.style.width = `${OBSTACLE_WIDTH}px`;
             obstacleDiv.style.height = `${obstacleHeight}px`;
             obstacleDiv.style.left = `${obstacleX}px`;
@@ -569,30 +727,22 @@
 
             obstacles.push({
                 x: obstacleX,
-                height: obstacleHeight, // Store the height of this single obstacle
-                element: obstacleDiv, // Reference to the DOM element
-                passed: false // To track if Math-Bot has passed for scoring
+                height: obstacleHeight,
+                element: obstacleDiv,
+                passed: false
             });
         }
 
         function updateObstacles() {
             obstacles.forEach(obstacle => {
-                obstacle.x -= gameSpeed;
+                obstacle.x -= initialGameSpeed; // Use fixed gameSpeed
                 obstacle.element.style.left = `${obstacle.x}px`;
 
-                // Check if Math-Bot has passed the obstacle's origin (left edge of Math-Bot passed right edge of obstacle)
+                // Check if Math-Bot has passed the obstacle's origin
                 if (!obstacle.passed && mathBot.offsetLeft > obstacle.x + OBSTACLE_WIDTH) {
                     score += 100; // Bonus points for passing
                     scoreDisplay.textContent = `Score: ${score}`;
                     obstacle.passed = true;
-                    // Increase difficulty gradually
-                    // Cap game speed, gravity increases, flap strength slightly decreases
-                    if (score % 500 === 0 && gameSpeed < 5) {
-                        gameSpeed += 0.2;
-                        gravity += 0.02;
-                        flapStrength -= 0.3; // Less drastic reduction in flap strength
-                        if (flapStrength < 4) flapStrength = 4; // Minimum flap strength
-                    }
                 }
             });
 
@@ -607,7 +757,7 @@
 
             // Spawn new obstacles
             const currentTime = Date.now();
-            if (currentTime - lastObstacleSpawnTime > OBSTACLE_SPAWN_INTERVAL) {
+            if (currentTime - lastObstacleSpawnTime > obstacleSpawnInterval) {
                 createObstacle();
                 lastObstacleSpawnTime = currentTime;
             }
@@ -636,7 +786,6 @@
                 // Check for horizontal overlap
                 if (mathBotRect.x + mathBotRect.width > obstacleX && mathBotRect.x < obstacleX + obstacleWidth) {
                     // Check for vertical overlap with the top of the bottom obstacle
-                    // The top of the bottom obstacle is at (GAME_HEIGHT - GROUND_HEIGHT - obstacle.height)
                     if (mathBotRect.y + mathBotRect.height > (GAME_HEIGHT - GROUND_HEIGHT - obstacle.height)) {
                         return true;
                     }
@@ -671,8 +820,8 @@
                 return;
             }
 
-            // Update horizontal score based on distance travelled (game speed)
-            score += Math.round(gameSpeed * 0.1); // Small continuous score
+            // Update horizontal score based on distance travelled
+            score += Math.round(initialGameSpeed * 0.1); // Small continuous score
             scoreDisplay.textContent = `Score: ${score}`;
 
             animationFrameId = requestAnimationFrame(gameLoop);
@@ -680,15 +829,15 @@
 
         // --- Game Control Functions ---
         function startGame() {
-            if (gameStarted) return; // Prevent starting multiple times
+            if (gameStarted) return;
             gameStarted = true;
             gameOver = false;
-            isPaused = false; // Ensure game is not paused when starting
+            isPaused = false;
 
-            // Initialize/resume AudioContext on first game start
-            initAudioContext();
+            initAudioContext(); // Ensure AudioContext is active
+            audioContext.resume().catch(e => console.error("AudioContext resume failed on startGame:", e));
 
-            // Update constants based on current screen size
+            // Update constants based on current screen size AND user inputs
             updateGameConstants();
 
             // Initial values
@@ -696,19 +845,18 @@
             mathBotVelocity = 0;
             score = 0;
             obstacles = [];
-            gameSpeed = 2; // Initial horizontal speed
-            gravity = 0.005;
-            flapStrength = 0.8; // How much bot jumps with correct answer
-            downwardNudge = 0.25; // How much bot drops with incorrect answer
             lastObstacleSpawnTime = Date.now();
 
             scoreDisplay.textContent = `Score: ${score}`;
             mathBot.style.top = `${mathBotY}px`;
-            mathBot.style.left = `${GAME_WIDTH * 0.125}px`; // Keep bot at 1/8th width position
+            mathBot.style.left = `${GAME_WIDTH * 0.125}px`;
             gameOverScreen.classList.remove('show');
-            pauseOverlay.classList.remove('show'); // Hide pause overlay
-            pauseButton.textContent = 'Pause'; // Reset pause button text
-            pauseButton.style.display = 'block'; // Ensure pause button is visible
+            pauseOverlay.classList.remove('show');
+            pauseButton.textContent = 'Pause';
+            pauseButton.style.display = 'block';
+
+            // Hide start/settings menu
+            startSettingsScreen.classList.add('hidden');
 
             // Remove any existing obstacles from previous game
             document.querySelectorAll('.obstacle').forEach(el => el.remove());
@@ -723,69 +871,127 @@
         function endGame() {
             gameOver = true;
             gameStarted = false;
-            cancelAnimationFrame(animationFrameId); // Stop the game loop
+            cancelAnimationFrame(animationFrameId);
             stopMusic();
-            playSound('crashSound'); // Play crash sound
+            playSound('crashSound');
 
             finalScoreDisplay.textContent = `Score: ${score}`;
             gameOverScreen.classList.add('show');
-            pauseButton.style.display = 'none'; // Hide pause button on game over
+            pauseButton.style.display = 'none';
         }
 
         function restartGame() {
-            // No need to show pause button here, startGame handles it
-            startGame();
+            // Reset state
+            gameOver = false;
+            gameStarted = false; // Set to false to allow startGame to run fully
+            isPaused = false; // Ensure not paused
+            // Re-show menu for new game setup
+            startSettingsScreen.classList.remove('hidden');
+            menuTitle.textContent = 'Flappy Equations'; // Reset title for new game
+            startGameButton.style.display = 'block';
+            applySettingsButton.style.display = 'none';
+            // Populate settings with current values
+            populateSettingsForm();
+
+            // Reset score and expression display immediately for aesthetic
+            scoreDisplay.textContent = 'Score: 0';
+            expressionDisplay.textContent = "Press 1-9 to Start!";
+            
+            // Hide game over screen
+            gameOverScreen.classList.remove('show');
+
+            // Ensure music is stopped from previous game
+            stopMusic();
+            // AudioContext might be suspended, it will be resumed by startGame
         }
 
+
         function togglePause() {
-            if (!gameStarted || gameOver) return; // Only allow pausing during an active game
+            if (!gameStarted || gameOver) return;
 
             isPaused = !isPaused;
             if (isPaused) {
-                cancelAnimationFrame(animationFrameId); // Stop the game loop
+                cancelAnimationFrame(animationFrameId);
                 pauseButton.textContent = 'Resume';
                 pauseOverlay.classList.add('show');
                 stopMusic(); // Pause music
-                if (audioContext.state === 'running') { // Pause AudioContext itself if running
+                if (audioContext.state === 'running') {
                     audioContext.suspend().catch(e => console.error("AudioContext suspend failed:", e));
                 }
+
+                // Show settings menu
+                startSettingsScreen.classList.remove('hidden');
+                menuTitle.textContent = 'Game Settings';
+                startGameButton.style.display = 'none';
+                applySettingsButton.style.display = 'block';
+                populateSettingsForm(); // Load current values into form
             } else {
+                // Apply settings first
+                readSettingsFromForm();
+                updateGameConstants(); // Re-evaluate dimensions/params with new settings
+
                 // Resume AudioContext first if suspended
                 if (audioContext.state === 'suspended') {
                     audioContext.resume().catch(e => console.error("AudioContext resume failed:", e));
                 }
-                animationFrameId = requestAnimationFrame(gameLoop); // Resume the game loop
+                animationFrameId = requestAnimationFrame(gameLoop);
                 pauseButton.textContent = 'Pause';
                 pauseOverlay.classList.remove('show');
                 startMusic(); // Resume music
+
+                // Hide settings menu
+                startSettingsScreen.classList.add('hidden');
             }
         }
 
+        // --- Settings Form Functions ---
+        function populateSettingsForm() {
+            inputGameSpeed.value = initialGameSpeed;
+            inputGravity.value = gravity;
+            inputFlapStrength.value = flapStrength;
+            inputDownwardNudge.value = downwardNudge;
+            inputObstacleSpawnInterval.value = obstacleSpawnInterval;
+            inputMinObstacleHeight.value = minObstacleHeight;
+            inputMaxObstacleClearance.value = maxObstacleClearance;
+        }
+
+        function readSettingsFromForm() {
+            initialGameSpeed = parseFloat(inputGameSpeed.value);
+            gravity = parseFloat(inputGravity.value);
+            flapStrength = parseFloat(inputFlapStrength.value);
+            downwardNudge = parseFloat(inputDownwardNudge.value);
+            obstacleSpawnInterval = parseInt(inputObstacleSpawnInterval.value);
+            minObstacleHeight = parseInt(inputMinObstacleHeight.value);
+            maxObstacleClearance = parseInt(inputMaxObstacleClearance.value);
+
+            // Basic validation/clamping (optional but good practice)
+            if (isNaN(initialGameSpeed) || initialGameSpeed <= 0) initialGameSpeed = 2;
+            if (isNaN(gravity) || gravity < 0) gravity = 0.05;
+            if (isNaN(flapStrength) || flapStrength <= 0) flapStrength = 8;
+            if (isNaN(downwardNudge) || downwardNudge < 0) downwardNudge = 0.25;
+            if (isNaN(obstacleSpawnInterval) || obstacleSpawnInterval < 500) obstacleSpawnInterval = 2000;
+            if (isNaN(minObstacleHeight) || minObstacleHeight < 10) minObstacleHeight = 50;
+            if (isNaN(maxObstacleClearance) || maxObstacleClearance < 50) maxObstacleClearance = 180;
+        }
+
+
         // --- Input Handling Logic ---
         function handleAnswerInput(inputNumber) {
-            if (gameOver || isPaused) return; // Ignore input if game is over or paused
+            if (gameOver || isPaused) return;
 
-            // Initialize/resume AudioContext on first user interaction if not already
-            initAudioContext();
-
-            if (!gameStarted) {
-                startGame(); // Start game on the first valid key press
-                return;
-            }
+            // No longer checking gameStarted here, as it's now handled by the Start Game button
+            // If the game isn't started yet, this input won't do anything because `gameStarted` is false.
 
             if (inputNumber === correctAnswer) {
-                // Correct answer
-                mathBotVelocity = -flapStrength; // Upward boost
-                playSound('correctSound'); // Play correct sound
+                mathBotVelocity = -flapStrength;
+                playSound('correctSound');
                 applyFlash('flash-green');
-                score += 50; // Bonus points for correct answer
-                generateExpression(); // New problem
+                score += 50;
+                generateExpression();
             } else {
-                // Incorrect answer
-                mathBotVelocity += downwardNudge; // Slight downward nudge
-                playSound('incorrectSound'); // Play incorrect sound
+                mathBotVelocity += downwardNudge;
+                playSound('incorrectSound');
                 applyFlash('flash-red');
-                // Expression remains until correct answer
             }
         }
 
@@ -793,8 +999,14 @@
         document.addEventListener('keydown', (e) => {
             const pressedKey = parseInt(e.key);
             if (!isNaN(pressedKey) && pressedKey >= 1 && pressedKey <= 9) {
-                handleAnswerInput(pressedKey);
-            } else if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') { // Add P/Escape for pause
+                // If game hasn't started, first number press will start it
+                if (!gameStarted && !startSettingsScreen.classList.contains('hidden')) {
+                     readSettingsFromForm(); // Apply settings on first key press too
+                     startGame();
+                } else {
+                    handleAnswerInput(pressedKey);
+                }
+            } else if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
                 togglePause();
             }
         });
@@ -802,16 +1014,26 @@
         touchpadButtons.forEach(button => {
             button.addEventListener('click', () => {
                 const value = parseInt(button.dataset.value);
-                handleAnswerInput(value);
+                // If game hasn't started, first touchpad press will start it
+                if (!gameStarted && !startSettingsScreen.classList.contains('hidden')) {
+                     readSettingsFromForm(); // Apply settings on first touchpad press too
+                     startGame();
+                } else {
+                    handleAnswerInput(value);
+                }
             });
         });
 
         restartButton.addEventListener('click', restartGame);
         pauseButton.addEventListener('click', togglePause);
+        startGameButton.addEventListener('click', () => {
+            readSettingsFromForm(); // Apply settings from form
+            startGame();
+        });
+        applySettingsButton.addEventListener('click', togglePause); // Apply settings and resume
 
-        // Initial setup on load (don't start the game until first key press)
+        // Initial setup on load
         document.addEventListener('DOMContentLoaded', async () => {
-            // Initialize AudioContext immediately so audio files can start loading
             initAudioContext(); // This will create the context, but it might be suspended.
 
             // Load all audio files
@@ -825,11 +1047,16 @@
             updateGameConstants(); // Set initial dimensions
             mathBotY = GAME_HEIGHT / 2 - MATH_BOT_HEIGHT / 2; // Position Math-Bot initially
             mathBot.style.top = `${mathBotY}px`;
-            mathBot.style.left = `${GAME_WIDTH * 0.125}px`; // Keep bot at 1/8th width position
-            // Display a welcome message
-            expressionDisplay.textContent = "Press 1-9 to Start!";
+            mathBot.style.left = `${GAME_WIDTH * 0.125}px`;
             scoreDisplay.textContent = "Score: 0";
-            pauseButton.style.display = 'block'; // Ensure pause button is visible initially
+            expressionDisplay.textContent = ""; // Blank initially, will be set by menu
+
+            // Populate form with default values (which are the initial global values)
+            populateSettingsForm();
+
+            // Ensure start menu is visible
+            startSettingsScreen.classList.remove('hidden');
+            pauseButton.style.display = 'block'; // Keep pause button visible, though it won't do much until game starts
         });
 
         // Re-evaluate game constants on window resize to ensure responsiveness
