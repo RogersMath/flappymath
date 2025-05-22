@@ -53,7 +53,7 @@
 
         #math-bot {
             position: absolute;
-            width: 70px; /* Desktop size */
+            width: 90px; /* Increased width for desktop to comfortably fit expressions */
             height: 50px; /* Desktop size */
             background-color: #FFD700; /* Gold/Yellow */
             border: 3px solid #DAA520; /* Darker gold */
@@ -87,8 +87,9 @@
             padding: 5px;
             background-color: rgba(255, 255, 255, 0.8);
             border-radius: 4px;
-            min-width: 50px;
+            /* min-width removed to allow natural sizing based on content */
             text-align: center;
+            white-space: nowrap; /* Crucial fix: Prevents text from wrapping */
         }
 
         .obstacle {
@@ -263,7 +264,7 @@
             }
 
             #math-bot {
-                width: 50px; /* Smaller size for mobile */
+                width: 65px; /* Increased width for mobile to fit expressions */
                 height: 40px;
                 font-size: 18px;
                 left: 60px; /* Adjust horizontal position for smaller screens */
@@ -392,13 +393,13 @@
 
         // Mobile specific constants for JS calculations (matching CSS where applicable)
         const MOBILE_MAX_WIDTH = 768; // Matches CSS media query breakpoint
-        const MATH_BOT_WIDTH_DESKTOP = 70;
+        const MATH_BOT_WIDTH_DESKTOP = 90; // Increased width for desktop to fit expressions
         const MATH_BOT_HEIGHT_DESKTOP = 50;
         const OBSTACLE_WIDTH_DESKTOP = 80;
         const MIN_OBSTACLE_HEIGHT_DESKTOP = 50;
         const MAX_OBSTACLE_CLEARANCE_DESKTOP = 180; // Min vertical space above obstacle for bot to fly
 
-        const MATH_BOT_WIDTH_MOBILE = 50;
+        const MATH_BOT_WIDTH_MOBILE = 65; // Increased width for mobile
         const MATH_BOT_HEIGHT_MOBILE = 40;
         const OBSTACLE_WIDTH_MOBILE = 60;
         const MIN_OBSTACLE_HEIGHT_MOBILE = 40;
@@ -648,6 +649,7 @@
             gameOverScreen.classList.remove('show');
             pauseOverlay.classList.remove('show'); // Hide pause overlay
             pauseButton.textContent = 'Pause'; // Reset pause button text
+            pauseButton.style.display = 'block'; // Ensure pause button is visible
 
             // Remove any existing obstacles from previous game
             document.querySelectorAll('.obstacle').forEach(el => el.remove());
@@ -672,7 +674,7 @@
         }
 
         function restartGame() {
-            pauseButton.style.display = 'block'; // Show pause button again
+            // No need to show pause button here, startGame handles it
             startGame();
         }
 
@@ -723,6 +725,8 @@
             const pressedKey = parseInt(e.key);
             if (!isNaN(pressedKey) && pressedKey >= 1 && pressedKey <= 9) {
                 handleAnswerInput(pressedKey);
+            } else if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') { // Add P/Escape for pause
+                togglePause();
             }
         });
 
