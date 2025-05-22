@@ -456,26 +456,26 @@
             <div id="start-settings-screen">
                 <h1 id="menu-title">Flappy Equations</h1>
                 <form id="settings-form">
-                    <label for="input-gameSpeed">Game Speed:</label>
-                    <input type="number" id="input-gameSpeed" step="0.1">
+                    <label for="input-gameSpeed">Game Speed (pixels/sec):</label>
+                    <input type="number" id="input-gameSpeed" step="5" value="120">
 
-                    <label for="input-gravity">Gravity:</label>
-                    <input type="number" id="input-gravity" step="0.005">
+                    <label for="input-gravity">Gravity (pixels/sec²):</label>
+                    <input type="number" id="input-gravity" step="1" value="500">
 
-                    <label for="input-flapStrength">Flap Strength:</label>
-                    <input type="number" id="input-flapStrength" step="0.1">
+                    <label for="input-flapStrength">Flap Strength (pixels/sec jump):</label>
+                    <input type="number" id="input-flapStrength" step="10" value="250">
 
-                    <label for="input-downwardNudge">Incorrect Nudge:</label>
-                    <input type="number" id="input-downwardNudge" step="0.05">
+                    <label for="input-downwardNudge">Incorrect Nudge (pixels/sec drop):</label>
+                    <input type="number" id="input-downwardNudge" step="5" value="100">
 
                     <label for="input-obstacleSpawnInterval">Obstacle Interval (ms):</label>
-                    <input type="number" id="input-obstacleSpawnInterval" step="100">
+                    <input type="number" id="input-obstacleSpawnInterval" step="100" value="2000">
 
-                    <label for="input-minObstacleHeight">Min Obstacle Height:</label>
-                    <input type="number" id="input-minObstacleHeight" step="10">
+                    <label for="input-minObstacleHeight">Min Obstacle Height (pixels):</label>
+                    <input type="number" id="input-minObstacleHeight" step="10" value="50">
 
-                    <label for="input-maxObstacleClearance">Min Clearance Above Obstacle:</label>
-                    <input type="number" id="input-maxObstacleClearance" step="10">
+                    <label for="input-maxObstacleClearance">Min Clearance Above Obstacle (pixels):</label>
+                    <input type="number" id="input-maxObstacleClearance" step="10" value="180">
                 </form>
                 <div id="menu-buttons">
                     <button id="start-game-button" class="menu-button">Start Game</button>
@@ -488,7 +488,7 @@
             <button class="touchpad-button" data-value="1">1</button>
             <button class="touchpad-button" data-value="2">2</button>
             <button class="touchpad-button" data-value="3">3</button>
-            <button class="touchpad-button" data-value="4">4</button>
+            <button class="touchpad-value="4">4</button>
             <button class="touchpad-button" data-value="5">5</button>
             <button class="touchpad-button" data-value="6">6</button>
             <button class="touchpad-button" data-value="7">7</button>
@@ -540,14 +540,18 @@
         let GROUND_HEIGHT;
         let OBSTACLE_WIDTH;
 
-        // Tunable game parameters with initial defaults
-        let initialGameSpeed = 2;
-        let gravity = 0.05;
-        let flapStrength = 8;
-        let downwardNudge = 0.25;
+        // Reference dimensions for scaling physics (desktop 800x600)
+        const REFERENCE_GAME_WIDTH = 800;
+        const REFERENCE_GAME_HEIGHT = 600;
+
+        // Tunable game parameters with initial defaults (these are base values before scaling)
+        let baseGameSpeed = 120; // pixels per second
+        let baseGravity = 500; // pixels per second squared
+        let baseFlapStrength = 250; // pixels per second of upward velocity
+        let baseDownwardNudge = 100; // pixels per second of downward velocity added
         let obstacleSpawnInterval = 2000; // milliseconds
-        let minObstacleHeight = 50; // Desktop default
-        let maxObstacleClearance = 180; // Desktop default (Min vertical space above obstacle for bot to fly)
+        let minObstacleHeight = 50; // pixels
+        let maxObstacleClearance = 180; // pixels (min space above obstacle)
 
 
         // Mobile specific constants for JS calculations (matching CSS where applicable)
@@ -573,6 +577,8 @@
         let obstacles = [];
         let lastObstacleSpawnTime;
         let animationFrameId;
+        let lastFrameTime = 0; // For delta time calculation
+
 
         // --- Audio Functions ---
         function initAudioContext() {
@@ -598,7 +604,6 @@
 
         function playShortSound(bufferName) {
             if (!audioContext || !audioBuffers[bufferName] || audioContext.state === 'suspended') {
-                // console.warn(`Audio buffer for '${bufferName}' not loaded, AudioContext suspended, or not initialized.`);
                 return;
             }
             const source = audioContext.createBufferSource();
@@ -609,7 +614,6 @@
 
         function startBackgroundMusic() {
             if (!audioContext || !audioBuffers['backgroundMusic'] || audioContext.state === 'suspended') {
-                // console.warn("Background music buffer not loaded or AudioContext not initialized/suspended.");
                 return;
             }
 
@@ -708,12 +712,17 @@
 
         // --- Obstacle Logic ---
         function createObstacle() {
+            // Scale `minObstacleHeight` and `maxObstacleClearance` based on current game height
+            const heightScaleFactor = GAME_HEIGHT / REFERENCE_GAME_HEIGHT;
+            const scaledMinObstacleHeight = minObstacleHeight * heightScaleFactor;
+            const scaledMaxObstacleClearance = maxObstacleClearance * heightScaleFactor;
+
             // Calculate max possible height for the bottom obstacle
             // It must leave enough room for the bot to fly over, plus some buffer.
-            const maxAllowedObstacleHeight = GAME_HEIGHT - GROUND_HEIGHT - MATH_BOT_HEIGHT - maxObstacleClearance;
+            const maxAllowedObstacleHeight = GAME_HEIGHT - GROUND_HEIGHT - MATH_BOT_HEIGHT - scaledMaxObstacleClearance;
 
             // Random height for the obstacle, clamped by user's minObstacleHeight and maxAllowedObstacleHeight
-            const obstacleHeight = Math.floor(Math.random() * (maxAllowedObstacleHeight - minObstacleHeight + 1)) + minObstacleHeight;
+            const obstacleHeight = Math.floor(Math.random() * (maxAllowedObstacleHeight - scaledMinObstacleHeight + 1)) + scaledMinObstacleHeight;
 
             const obstacleX = GAME_WIDTH;
 
@@ -733,9 +742,12 @@
             });
         }
 
-        function updateObstacles() {
+        function updateObstacles(deltaTime) {
+            const widthScaleFactor = GAME_WIDTH / REFERENCE_GAME_WIDTH;
+            const horizontalSpeed = baseGameSpeed * widthScaleFactor; // Scale speed by current game width
+
             obstacles.forEach(obstacle => {
-                obstacle.x -= initialGameSpeed; // Use fixed gameSpeed
+                obstacle.x -= horizontalSpeed * deltaTime; // Apply delta time
                 obstacle.element.style.left = `${obstacle.x}px`;
 
                 // Check if Math-Bot has passed the obstacle's origin
@@ -755,7 +767,7 @@
                 return true;
             });
 
-            // Spawn new obstacles
+            // Spawn new obstacles based on time interval
             const currentTime = Date.now();
             if (currentTime - lastObstacleSpawnTime > obstacleSpawnInterval) {
                 createObstacle();
@@ -796,12 +808,21 @@
         }
 
         // --- Game Loop ---
-        function gameLoop() {
-            if (gameOver || isPaused) return; // Exit if game is over or paused
+        function gameLoop(currentTime) {
+            if (!lastFrameTime) lastFrameTime = currentTime; // Initialize lastFrameTime on the first call
+            const deltaTime = (currentTime - lastFrameTime) / 1000; // Convert milliseconds to seconds
+            lastFrameTime = currentTime;
 
-            // Update Math-Bot position
-            mathBotVelocity += gravity;
-            mathBotY += mathBotVelocity;
+            if (gameOver || isPaused) {
+                lastFrameTime = currentTime; // Reset for when game resumes
+                return; // Exit if game is over or paused
+            }
+
+            const heightScaleFactor = GAME_HEIGHT / REFERENCE_GAME_HEIGHT;
+
+            // Update Math-Bot position using delta time and scaled physics
+            mathBotVelocity += (baseGravity * heightScaleFactor) * deltaTime;
+            mathBotY += mathBotVelocity * deltaTime;
 
             // Clamp Math-Bot Y position (prevent it from going completely off top)
             if (mathBotY < 0) {
@@ -812,7 +833,7 @@
             mathBot.style.top = `${mathBotY}px`;
 
             // Update obstacles
-            updateObstacles();
+            updateObstacles(deltaTime); // Pass deltaTime to obstacle update
 
             // Check collisions
             if (checkCollision()) {
@@ -820,8 +841,9 @@
                 return;
             }
 
-            // Update horizontal score based on distance travelled
-            score += Math.round(initialGameSpeed * 0.1); // Small continuous score
+            // Update horizontal score based on distance travelled (game speed)
+            const widthScaleFactor = GAME_WIDTH / REFERENCE_GAME_WIDTH;
+            score += Math.round((baseGameSpeed * widthScaleFactor) * deltaTime * 10); // Adjust score gain per second
             scoreDisplay.textContent = `Score: ${score}`;
 
             animationFrameId = requestAnimationFrame(gameLoop);
@@ -846,6 +868,7 @@
             score = 0;
             obstacles = [];
             lastObstacleSpawnTime = Date.now();
+            lastFrameTime = 0; // Reset lastFrameTime for a clean start
 
             scoreDisplay.textContent = `Score: ${score}`;
             mathBot.style.top = `${mathBotY}px`;
@@ -865,7 +888,7 @@
             createObstacle(); // Create the first obstacle
 
             startMusic();
-            gameLoop();
+            animationFrameId = requestAnimationFrame(gameLoop); // Start the game loop
         }
 
         function endGame() {
@@ -895,14 +918,13 @@
 
             // Reset score and expression display immediately for aesthetic
             scoreDisplay.textContent = 'Score: 0';
-            expressionDisplay.textContent = "Press 1-9 to Start!";
+            expressionDisplay.textContent = "Welcome to Flappy Equations!"; // Initial message for start screen
             
             // Hide game over screen
             gameOverScreen.classList.remove('show');
 
             // Ensure music is stopped from previous game
             stopMusic();
-            // AudioContext might be suspended, it will be resumed by startGame
         }
 
 
@@ -934,7 +956,8 @@
                 if (audioContext.state === 'suspended') {
                     audioContext.resume().catch(e => console.error("AudioContext resume failed:", e));
                 }
-                animationFrameId = requestAnimationFrame(gameLoop);
+                // Don't reset lastFrameTime here, it's handled by gameLoop's initial check
+                animationFrameId = requestAnimationFrame(gameLoop); // Resume the game loop
                 pauseButton.textContent = 'Pause';
                 pauseOverlay.classList.remove('show');
                 startMusic(); // Resume music
@@ -946,29 +969,29 @@
 
         // --- Settings Form Functions ---
         function populateSettingsForm() {
-            inputGameSpeed.value = initialGameSpeed;
-            inputGravity.value = gravity;
-            inputFlapStrength.value = flapStrength;
-            inputDownwardNudge.value = downwardNudge;
+            inputGameSpeed.value = baseGameSpeed;
+            inputGravity.value = baseGravity;
+            inputFlapStrength.value = baseFlapStrength;
+            inputDownwardNudge.value = baseDownwardNudge;
             inputObstacleSpawnInterval.value = obstacleSpawnInterval;
             inputMinObstacleHeight.value = minObstacleHeight;
             inputMaxObstacleClearance.value = maxObstacleClearance;
         }
 
         function readSettingsFromForm() {
-            initialGameSpeed = parseFloat(inputGameSpeed.value);
-            gravity = parseFloat(inputGravity.value);
-            flapStrength = parseFloat(inputFlapStrength.value);
-            downwardNudge = parseFloat(inputDownwardNudge.value);
+            baseGameSpeed = parseFloat(inputGameSpeed.value);
+            baseGravity = parseFloat(inputGravity.value);
+            baseFlapStrength = parseFloat(inputFlapStrength.value);
+            baseDownwardNudge = parseFloat(inputDownwardNudge.value);
             obstacleSpawnInterval = parseInt(inputObstacleSpawnInterval.value);
             minObstacleHeight = parseInt(inputMinObstacleHeight.value);
             maxObstacleClearance = parseInt(inputMaxObstacleClearance.value);
 
             // Basic validation/clamping (optional but good practice)
-            if (isNaN(initialGameSpeed) || initialGameSpeed <= 0) initialGameSpeed = 2;
-            if (isNaN(gravity) || gravity < 0) gravity = 0.05;
-            if (isNaN(flapStrength) || flapStrength <= 0) flapStrength = 8;
-            if (isNaN(downwardNudge) || downwardNudge < 0) downwardNudge = 0.25;
+            if (isNaN(baseGameSpeed) || baseGameSpeed <= 0) baseGameSpeed = 120;
+            if (isNaN(baseGravity) || baseGravity < 0) baseGravity = 500;
+            if (isNaN(baseFlapStrength) || baseFlapStrength <= 0) baseFlapStrength = 250;
+            if (isNaN(baseDownwardNudge) || baseDownwardNudge < 0) baseDownwardNudge = 100;
             if (isNaN(obstacleSpawnInterval) || obstacleSpawnInterval < 500) obstacleSpawnInterval = 2000;
             if (isNaN(minObstacleHeight) || minObstacleHeight < 10) minObstacleHeight = 50;
             if (isNaN(maxObstacleClearance) || maxObstacleClearance < 50) maxObstacleClearance = 180;
@@ -979,17 +1002,25 @@
         function handleAnswerInput(inputNumber) {
             if (gameOver || isPaused) return;
 
-            // No longer checking gameStarted here, as it's now handled by the Start Game button
-            // If the game isn't started yet, this input won't do anything because `gameStarted` is false.
+            // If game hasn't started, first number press will start it
+            if (!gameStarted && !startSettingsScreen.classList.contains('hidden')) {
+                 readSettingsFromForm(); // Apply settings on first key/touchpad press too
+                 startGame();
+                 return; // Exit after starting game, input will be processed in next frame
+            }
+
+            const heightScaleFactor = GAME_HEIGHT / REFERENCE_GAME_HEIGHT;
 
             if (inputNumber === correctAnswer) {
-                mathBotVelocity = -flapStrength;
+                // Apply scaled flap strength
+                mathBotVelocity = -(baseFlapStrength * heightScaleFactor);
                 playSound('correctSound');
                 applyFlash('flash-green');
                 score += 50;
                 generateExpression();
             } else {
-                mathBotVelocity += downwardNudge;
+                // Apply scaled downward nudge
+                mathBotVelocity += (baseDownwardNudge * heightScaleFactor);
                 playSound('incorrectSound');
                 applyFlash('flash-red');
             }
@@ -999,13 +1030,7 @@
         document.addEventListener('keydown', (e) => {
             const pressedKey = parseInt(e.key);
             if (!isNaN(pressedKey) && pressedKey >= 1 && pressedKey <= 9) {
-                // If game hasn't started, first number press will start it
-                if (!gameStarted && !startSettingsScreen.classList.contains('hidden')) {
-                     readSettingsFromForm(); // Apply settings on first key press too
-                     startGame();
-                } else {
-                    handleAnswerInput(pressedKey);
-                }
+                handleAnswerInput(pressedKey);
             } else if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
                 togglePause();
             }
@@ -1014,13 +1039,7 @@
         touchpadButtons.forEach(button => {
             button.addEventListener('click', () => {
                 const value = parseInt(button.dataset.value);
-                // If game hasn't started, first touchpad press will start it
-                if (!gameStarted && !startSettingsScreen.classList.contains('hidden')) {
-                     readSettingsFromForm(); // Apply settings on first touchpad press too
-                     startGame();
-                } else {
-                    handleAnswerInput(value);
-                }
+                handleAnswerInput(value);
             });
         });
 
@@ -1049,7 +1068,7 @@
             mathBot.style.top = `${mathBotY}px`;
             mathBot.style.left = `${GAME_WIDTH * 0.125}px`;
             scoreDisplay.textContent = "Score: 0";
-            expressionDisplay.textContent = ""; // Blank initially, will be set by menu
+            expressionDisplay.textContent = "Welcome to Flappy Equations!"; // Initial message for start screen
 
             // Populate form with default values (which are the initial global values)
             populateSettingsForm();
