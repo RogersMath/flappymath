@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Equations</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #333;
+            font-family: 'Press Start 2P', cursive; /* Retro gaming font */
+            color: white;
+            user-select: none; /* Prevent text selection */
+        }
+
+        #game-container {
+            width: 800px; /* Game resolution */
+            height: 600px;
+            background: linear-gradient(to bottom, #87CEEB, #5C94D1); /* Sky blue gradient */
+            border: 4px solid #555;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            border-radius: 8px;
+        }
+
+        #ground {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 60px; /* Height of the ground */
+            background: linear-gradient(to top, #7C4F2A, #A0673A); /* Brown ground */
+            border-top: 4px solid #663D1D;
+            z-index: 15; /* Above obstacles */
+        }
+
+        #math-bot {
+            position: absolute;
+            width: 70px;
+            height: 50px;
+            background-color: #FFD700; /* Gold/Yellow */
+            border: 3px solid #DAA520; /* Darker gold */
+            border-radius: 8px;
+            left: 100px; /* Fixed horizontal position */
+            top: 250px; /* Initial vertical position */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+            transition: background-color 0.1s ease-out, transform 0.05s ease-out; /* Smooth transition for flash */
+            z-index: 10;
+        }
+
+        #math-bot.flash-green {
+            background-color: #90EE90; /* Light green */
+            border-color: #3CB371; /* Medium Sea Green */
+            transform: scale(1.05); /* Slight bounce */
+        }
+
+        #math-bot.flash-red {
+            background-color: #FF6347; /* Tomato */
+            border-color: #DC143C; /* Crimson */
+            transform: scale(0.95); /* Slight stutter/shrink */
+        }
+
+        #expression-display {
+            padding: 5px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border-radius: 4px;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        .obstacle {
+            position: absolute;
+            width: 80px; /* Width of the "gate" */
+            background-color: #228B22; /* Forest Green */
+            border: 3px solid #1E711E; /* Darker green */
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+            z-index: 5;
+        }
+
+        .obstacle.top {
+            top: 0;
+            border-bottom: none;
+            border-bottom-left-radius: 8px;
+            border-bottom-right-radius: 8px;
+        }
+
+        .obstacle.bottom {
+            bottom: 0;
+            border-top: none;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+        }
+
+        #score-display {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 30px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            z-index: 20;
+            background-color: rgba(0,0,0,0.4);
+            padding: 5px 15px;
+            border-radius: 5px;
+        }
+
+        #game-over-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            font-weight: bold;
+            z-index: 100;
+            text-align: center;
+            opacity: 0; /* Start hidden */
+            pointer-events: none; /* Don't block clicks when hidden */
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #game-over-screen.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #final-score {
+            font-size: 60px;
+            margin: 20px 0;
+            color: #FFD700;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.7);
+        }
+
+        #restart-button {
+            padding: 15px 30px;
+            font-size: 24px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        #restart-button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="ground"></div>
+        <div id="math-bot">
+            <span id="expression-display"></span>
+        </div>
+        <div id="score-display">Score: 0</div>
+        <div id="game-over-screen">
+            Game Over!
+            <div id="final-score">Score: 0</div>
+            <button id="restart-button">Restart Game</button>
+        </div>
+    </div>
+
+    <!-- Audio Elements - These are placeholder URLs. For a production game,
+         you would replace these with your own local audio files. -->
+    <audio id="correct-sound" src="https://www.soundjay.com/button/button-3.wav" preload="auto"></audio>
+    <audio id="incorrect-sound" src="https://www.soundjay.com/misc/fail-buzzer-01.wav" preload="auto"></audio>
+    <audio id="crash-sound" src="https://www.soundjay.com/transport/car-crash-1.wav" preload="auto"></audio>
+    <audio id="background-music" src="https://www.soundjay.com/music/music-1.wav" preload="auto" loop></audio>
+
+    <script>
+        const gameContainer = document.getElementById('game-container');
+        const mathBot = document.getElementById('math-bot');
+        const expressionDisplay = document.getElementById('expression-display');
+        const scoreDisplay = document.getElementById('score-display');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const restartButton = document.getElementById('restart-button');
+        const ground = document.getElementById('ground');
+
+        // Audio elements
+        const correctSound = document.getElementById('correct-sound');
+        const incorrectSound = document.getElementById('incorrect-sound');
+        const crashSound = document.getElementById('crash-sound');
+        const backgroundMusic = document.getElementById('background-music');
+
+        // Game constants
+        const GAME_WIDTH = gameContainer.offsetWidth;
+        const GAME_HEIGHT = gameContainer.offsetHeight;
+        const MATH_BOT_WIDTH = mathBot.offsetWidth;
+        const MATH_BOT_HEIGHT = mathBot.offsetHeight;
+        const GROUND_HEIGHT = ground.offsetHeight;
+        const OBSTACLE_WIDTH = 80;
+        const GAP_HEIGHT = 180; // Height of the gap between top and bottom obstacles
+        const OBSTACLE_SPAWN_INTERVAL = 2000; // milliseconds between new obstacles
+
+        // Game variables (will be initialized in startGame)
+        let gameStarted = false;
+        let gameOver = false;
+        let mathBotY;
+        let mathBotVelocity;
+        let score;
+        let currentExpression;
+        let correctAnswer;
+        let obstacles = [];
+        let gameSpeed;
+        let gravity;
+        let flapStrength;
+        let downwardNudge;
+        let lastObstacleSpawnTime;
+        let animationFrameId; // To control requestAnimationFrame
+
+        // --- Audio Functions ---
+        function playSound(audioElement) {
+            audioElement.currentTime = 0; // Rewind to start for quick successive plays
+            audioElement.play().catch(e => console.error("Audio playback failed:", e));
+        }
+
+        function startMusic() {
+            backgroundMusic.volume = 0.3; // Lower volume for background music
+            backgroundMusic.play().catch(e => console.error("Music playback failed:", e));
+        }
+
+        function stopMusic() {
+            backgroundMusic.pause();
+            backgroundMusic.currentTime = 0;
+        }
+
+        // --- Visual Feedback Functions ---
+        function applyFlash(colorClass) {
+            mathBot.classList.add(colorClass);
+            setTimeout(() => {
+                mathBot.classList.remove(colorClass);
+            }, 100); // Flash duration
+        }
+
+        // --- Math Logic ---
+        function generateExpression() {
+            let num1, num2, operator, result;
+
+            // Randomly choose addition or subtraction
+            if (Math.random() < 0.5) { // Addition
+                operator = '+';
+                // operand1 (1-8), operand2 (1 to 9-operand1), sum 1-9
+                num1 = Math.floor(Math.random() * 8) + 1;
+                num2 = Math.floor(Math.random() * (9 - num1)) + 1;
+                result = num1 + num2;
+            } else { // Subtraction
+                operator = '-';
+                // operand1 (2-9), operand2 (1 to operand1-1), result 1-9
+                num1 = Math.floor(Math.random() * 8) + 2;
+                num2 = Math.floor(Math.random() * (num1 - 1)) + 1;
+                result = num1 - num2;
+            }
+
+            currentExpression = `${num1} ${operator} ${num2}`;
+            correctAnswer = result;
+            expressionDisplay.textContent = currentExpression;
+        }
+
+        // --- Obstacle Logic ---
+        function createObstacle() {
+            const minGapY = MATH_BOT_HEIGHT * 2; // Minimum space from top
+            const maxGapY = GAME_HEIGHT - GROUND_HEIGHT - (MATH_BOT_HEIGHT * 2) - GAP_HEIGHT; // Max space from bottom
+
+            // Random vertical center of the gap (ensuring gap is fully within playable area)
+            const gapTop = Math.floor(Math.random() * (maxGapY - minGapY + 1)) + minGapY;
+
+            // Calculate heights for top and bottom parts of the obstacle
+            const topHeight = gapTop;
+            const bottomHeight = GAME_HEIGHT - GROUND_HEIGHT - (gapTop + GAP_HEIGHT);
+
+            const obstacleX = GAME_WIDTH;
+
+            // Create top obstacle div
+            const topObstacleDiv = document.createElement('div');
+            topObstacleDiv.classList.add('obstacle', 'top');
+            topObstacleDiv.style.width = `${OBSTACLE_WIDTH}px`;
+            topObstacleDiv.style.height = `${topHeight}px`;
+            topObstacleDiv.style.left = `${obstacleX}px`;
+            gameContainer.appendChild(topObstacleDiv);
+
+            // Create bottom obstacle div
+            const bottomObstacleDiv = document.createElement('div');
+            bottomObstacleDiv.classList.add('obstacle', 'bottom');
+            bottomObstacleDiv.style.width = `${OBSTACLE_WIDTH}px`;
+            bottomObstacleDiv.style.height = `${bottomHeight}px`;
+            bottomObstacleDiv.style.left = `${obstacleX}px`;
+            gameContainer.appendChild(bottomObstacleDiv);
+
+            obstacles.push({
+                x: obstacleX,
+                topHeight: topHeight,
+                bottomHeight: bottomHeight, // This is the actual height, not Y position
+                elementTop: topObstacleDiv,
+                elementBottom: bottomObstacleDiv,
+                passed: false // To track if Math-Bot has passed for scoring
+            });
+        }
+
+        function updateObstacles() {
+            obstacles.forEach(obstacle => {
+                obstacle.x -= gameSpeed;
+                obstacle.elementTop.style.left = `${obstacle.x}px`;
+                obstacle.elementBottom.style.left = `${obstacle.x}px`;
+
+                // Check if Math-Bot has passed the obstacle's origin (left edge of Math-Bot passed right edge of obstacle)
+                if (!obstacle.passed && mathBot.offsetLeft > obstacle.x + OBSTACLE_WIDTH) {
+                    score += 100; // Bonus points for passing
+                    scoreDisplay.textContent = `Score: ${score}`;
+                    obstacle.passed = true;
+                    // Increase difficulty gradually
+                    if (score % 500 === 0 && gameSpeed < 5) { // Cap game speed at 5
+                        gameSpeed += 0.2;
+                        gravity += 0.02;
+                        flapStrength -= 0.5; // Make flapping slightly less effective, increasing challenge
+                        if (flapStrength < 5) flapStrength = 5; // Minimum flap strength
+                    }
+                }
+            });
+
+            // Remove obstacles that are off-screen
+            obstacles = obstacles.filter(obstacle => {
+                if (obstacle.x + OBSTACLE_WIDTH < 0) {
+                    obstacle.elementTop.remove();
+                    obstacle.elementBottom.remove();
+                    return false;
+                }
+                return true;
+            });
+
+            // Spawn new obstacles
+            const currentTime = Date.now();
+            if (currentTime - lastObstacleSpawnTime > OBSTACLE_SPAWN_INTERVAL) {
+                createObstacle();
+                lastObstacleSpawnTime = currentTime;
+            }
+        }
+
+        // --- Collision Detection ---
+        function checkCollision() {
+            // Ground collision
+            if (mathBotY + MATH_BOT_HEIGHT >= GAME_HEIGHT - GROUND_HEIGHT) {
+                mathBotY = GAME_HEIGHT - GROUND_HEIGHT - MATH_BOT_HEIGHT; // Snap to ground
+                return true;
+            }
+
+            // Obstacle collision
+            const mathBotRect = {
+                x: mathBot.offsetLeft,
+                y: mathBotY,
+                width: MATH_BOT_WIDTH,
+                height: MATH_BOT_HEIGHT
+            };
+
+            for (const obstacle of obstacles) {
+                const obstacleX = obstacle.x;
+                const obstacleWidth = OBSTACLE_WIDTH;
+
+                // Check for horizontal overlap
+                if (mathBotRect.x + mathBotRect.width > obstacleX && mathBotRect.x < obstacleX + obstacleWidth) {
+                    // Calculate bottom pipe's actual Y coordinate
+                    const bottomPipeY = GAME_HEIGHT - GROUND_HEIGHT - obstacle.bottomHeight;
+
+                    // Check for vertical overlap with top pipe or bottom pipe
+                    if (mathBotRect.y < obstacle.topHeight || mathBotRect.y + mathBotRect.height > bottomPipeY) {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        // --- Game Loop ---
+        function gameLoop() {
+            if (gameOver) return;
+
+            // Update Math-Bot position
+            mathBotVelocity += gravity;
+            mathBotY += mathBotVelocity;
+
+            // Clamp Math-Bot Y position (prevent it from going completely off top)
+            if (mathBotY < 0) {
+                mathBotY = 0;
+                mathBotVelocity = 0; // Stop upward movement if hitting top
+            }
+
+            mathBot.style.top = `${mathBotY}px`;
+
+            // Update obstacles
+            updateObstacles();
+
+            // Check collisions
+            if (checkCollision()) {
+                endGame();
+                return;
+            }
+
+            // Update horizontal score based on distance travelled (game speed)
+            score += Math.round(gameSpeed * 0.1); // Small continuous score
+            scoreDisplay.textContent = `Score: ${score}`;
+
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        // --- Game Control Functions ---
+        function startGame() {
+            if (gameStarted) return; // Prevent starting multiple times
+            gameStarted = true;
+            gameOver = false;
+
+            // Initial values
+            mathBotY = GAME_HEIGHT / 2 - MATH_BOT_HEIGHT / 2;
+            mathBotVelocity = 0;
+            score = 0;
+            obstacles = [];
+            gameSpeed = 2; // Initial horizontal speed
+            gravity = 0.5; // How fast Math-Bot falls
+            flapStrength = 9; // How much Math-Bot boosts up
+            downwardNudge = 2; // How much Math-Bot nudges down on incorrect
+            lastObstacleSpawnTime = Date.now();
+
+            scoreDisplay.textContent = `Score: ${score}`;
+            mathBot.style.top = `${mathBotY}px`;
+            gameOverScreen.classList.remove('show');
+
+            // Remove any existing obstacles from previous game
+            document.querySelectorAll('.obstacle').forEach(el => el.remove());
+
+            generateExpression();
+            createObstacle(); // Create the first obstacle
+
+            startMusic();
+            gameLoop();
+        }
+
+        function endGame() {
+            gameOver = true;
+            gameStarted = false;
+            cancelAnimationFrame(animationFrameId); // Stop the game loop
+            stopMusic();
+            playSound(crashSound);
+
+            finalScoreDisplay.textContent = `Score: ${score}`;
+            gameOverScreen.classList.add('show');
+        }
+
+        function restartGame() {
+            startGame();
+        }
+
+        // --- Event Listeners ---
+        document.addEventListener('keydown', (e) => {
+            if (gameOver) return; // Ignore input if game is over
+
+            const pressedKey = parseInt(e.key);
+
+            // Check if it's a number key between 1 and 9
+            if (isNaN(pressedKey) || pressedKey < 1 || pressedKey > 9) {
+                return; // Not a valid number key, ignore
+            }
+
+            if (!gameStarted) {
+                startGame(); // Start game on the first valid key press
+                return;
+            }
+
+            if (pressedKey === correctAnswer) {
+                // Correct answer
+                mathBotVelocity = -flapStrength; // Upward boost
+                playSound(correctSound);
+                applyFlash('flash-green');
+                score += 50; // Bonus points for correct answer
+                generateExpression(); // New problem
+            } else {
+                // Incorrect answer
+                mathBotVelocity += downwardNudge; // Slight downward nudge
+                playSound(incorrectSound);
+                applyFlash('flash-red');
+                // Expression remains until correct answer
+            }
+        });
+
+        restartButton.addEventListener('click', restartGame);
+
+        // Initial setup on load (don't start the game until first key press)
+        document.addEventListener('DOMContentLoaded', () => {
+            // Position Math-Bot initially
+            mathBotY = GAME_HEIGHT / 2 - MATH_BOT_HEIGHT / 2;
+            mathBot.style.top = `${mathBotY}px`;
+            // Display a welcome message
+            expressionDisplay.textContent = "Press 1-9 to Start!";
+            scoreDisplay.textContent = "Score: 0";
+        });
+    </script>
+</body>
+</html>
