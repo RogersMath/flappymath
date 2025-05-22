@@ -17,10 +17,20 @@
             font-family: 'Press Start 2P', cursive; /* Retro gaming font */
             color: white;
             user-select: none; /* Prevent text selection */
+            flex-direction: row; /* Default for desktop */
+        }
+
+        #main-wrapper {
+            display: flex;
+            flex-direction: row; /* Default for desktop */
+            justify-content: center;
+            align-items: center;
+            width: auto; /* Adjusts to content */
+            height: auto; /* Adjusts to content */
         }
 
         #game-container {
-            width: 800px; /* Game resolution */
+            width: 800px; /* Game resolution for desktop */
             height: 600px;
             background: linear-gradient(to bottom, #87CEEB, #5C94D1); /* Sky blue gradient */
             border: 4px solid #555;
@@ -43,8 +53,8 @@
 
         #math-bot {
             position: absolute;
-            width: 70px;
-            height: 50px;
+            width: 70px; /* Desktop size */
+            height: 50px; /* Desktop size */
             background-color: #FFD700; /* Gold/Yellow */
             border: 3px solid #DAA520; /* Darker gold */
             border-radius: 8px;
@@ -83,7 +93,7 @@
 
         .obstacle {
             position: absolute;
-            width: 80px; /* Width of the "gate" */
+            width: 80px; /* Desktop width of the "gate" */
             background-color: #228B22; /* Forest Green */
             border: 3px solid #1E711E; /* Darker green */
             box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
@@ -165,19 +175,135 @@
         #restart-button:hover {
             background-color: #45a049;
         }
+
+        /* --- Touchpad Styles (Default: Hidden) --- */
+        #touchpad-container {
+            display: none; /* Hidden by default on desktop */
+            background-color: #222;
+            padding: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+            border-radius: 8px;
+        }
+
+        .touchpad-button {
+            width: 80px;
+            height: 80px;
+            margin: 5px;
+            background-color: #555;
+            color: white;
+            border: 2px solid #777;
+            border-radius: 8px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 36px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+        }
+
+        .touchpad-button:active {
+            background-color: #777;
+            transform: scale(0.95);
+        }
+
+        /* --- Mobile Styles --- */
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+                justify-content: flex-start; /* Stack content from top */
+            }
+
+            #main-wrapper {
+                flex-direction: column;
+                width: 100vw; /* Take full viewport width */
+                height: 100vh; /* Take full viewport height */
+            }
+
+            #game-container {
+                width: 100%; /* Full width on mobile */
+                height: 70vh; /* 70% of viewport height for game */
+                border: none; /* Remove border for full screen feel */
+                border-radius: 0;
+                box-shadow: none;
+            }
+
+            #math-bot {
+                width: 50px; /* Smaller size for mobile */
+                height: 40px;
+                font-size: 18px;
+                left: 60px; /* Adjust horizontal position for smaller screens */
+            }
+
+            .obstacle {
+                width: 60px; /* Smaller width for mobile */
+            }
+
+            #score-display {
+                font-size: 24px;
+                padding: 3px 10px;
+            }
+
+            #game-over-screen {
+                font-size: 30px;
+            }
+
+            #final-score {
+                font-size: 40px;
+            }
+
+            #restart-button {
+                padding: 10px 20px;
+                font-size: 18px;
+            }
+
+            /* Show and style touchpad for mobile */
+            #touchpad-container {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr); /* 3 columns */
+                grid-template-rows: repeat(3, 1fr); /* 3 rows */
+                width: 100%;
+                height: 30vh; /* 30% of viewport height for touchpad */
+                box-sizing: border-box; /* Include padding in height */
+                padding: 10px;
+                border-radius: 0;
+            }
+
+            .touchpad-button {
+                width: auto; /* Take available grid space */
+                height: auto;
+                margin: 5px;
+                font-size: 28px;
+            }
+        }
     </style>
 </head>
 <body>
-    <div id="game-container">
-        <div id="ground"></div>
-        <div id="math-bot">
-            <span id="expression-display"></span>
+    <div id="main-wrapper">
+        <div id="game-container">
+            <div id="ground"></div>
+            <div id="math-bot">
+                <span id="expression-display"></span>
+            </div>
+            <div id="score-display">Score: 0</div>
+            <div id="game-over-screen">
+                Game Over!
+                <div id="final-score">Score: 0</div>
+                <button id="restart-button">Restart Game</button>
+            </div>
         </div>
-        <div id="score-display">Score: 0</div>
-        <div id="game-over-screen">
-            Game Over!
-            <div id="final-score">Score: 0</div>
-            <button id="restart-button">Restart Game</button>
+
+        <div id="touchpad-container">
+            <button class="touchpad-button" data-value="1">1</button>
+            <button class="touchpad-button" data-value="2">2</button>
+            <button class="touchpad-button" data-value="3">3</button>
+            <button class="touchpad-button" data-value="4">4</button>
+            <button class="touchpad-button" data-value="5">5</button>
+            <button class="touchpad-button" data-value="6">6</button>
+            <button class="touchpad-button" data-value="7">7</button>
+            <button class="touchpad-button" data-value="8">8</button>
+            <button class="touchpad-button" data-value="9">9</button>
         </div>
     </div>
 
@@ -197,6 +323,7 @@
         const finalScoreDisplay = document.getElementById('final-score');
         const restartButton = document.getElementById('restart-button');
         const ground = document.getElementById('ground');
+        const touchpadButtons = document.querySelectorAll('.touchpad-button');
 
         // Audio elements
         const correctSound = document.getElementById('correct-sound');
@@ -204,15 +331,27 @@
         const crashSound = document.getElementById('crash-sound');
         const backgroundMusic = document.getElementById('background-music');
 
-        // Game constants
-        const GAME_WIDTH = gameContainer.offsetWidth;
-        const GAME_HEIGHT = gameContainer.offsetHeight;
-        const MATH_BOT_WIDTH = mathBot.offsetWidth;
-        const MATH_BOT_HEIGHT = mathBot.offsetHeight;
-        const GROUND_HEIGHT = ground.offsetHeight;
-        const OBSTACLE_WIDTH = 80;
-        const GAP_HEIGHT = 180; // Height of the gap between top and bottom obstacles
+        // Game constants (will be initialized/updated in updateGameConstants)
+        let GAME_WIDTH;
+        let GAME_HEIGHT;
+        let MATH_BOT_WIDTH;
+        let MATH_BOT_HEIGHT;
+        let GROUND_HEIGHT;
+        let OBSTACLE_WIDTH;
+        let GAP_HEIGHT; // Height of the gap between top and bottom obstacles
         const OBSTACLE_SPAWN_INTERVAL = 2000; // milliseconds between new obstacles
+
+        // Mobile specific constants for JS calculations (matching CSS where applicable)
+        const MOBILE_MAX_WIDTH = 768; // Matches CSS media query breakpoint
+        const MATH_BOT_WIDTH_DESKTOP = 70;
+        const MATH_BOT_HEIGHT_DESKTOP = 50;
+        const OBSTACLE_WIDTH_DESKTOP = 80;
+        const GAP_HEIGHT_DESKTOP = 180;
+
+        const MATH_BOT_WIDTH_MOBILE = 50;
+        const MATH_BOT_HEIGHT_MOBILE = 40;
+        const OBSTACLE_WIDTH_MOBILE = 60;
+        const GAP_HEIGHT_MOBILE = 150; // Smaller gap for smaller screens
 
         // Game variables (will be initialized in startGame)
         let gameStarted = false;
@@ -229,6 +368,27 @@
         let downwardNudge;
         let lastObstacleSpawnTime;
         let animationFrameId; // To control requestAnimationFrame
+
+        // --- Update Game Dimensions based on screen size ---
+        function updateGameConstants() {
+            GAME_WIDTH = gameContainer.offsetWidth;
+            GAME_HEIGHT = gameContainer.offsetHeight;
+
+            const isMobile = window.innerWidth <= MOBILE_MAX_WIDTH;
+
+            // Update Math-Bot and Obstacle dimensions for JS calculations
+            MATH_BOT_WIDTH = isMobile ? MATH_BOT_WIDTH_MOBILE : MATH_BOT_WIDTH_DESKTOP;
+            MATH_BOT_HEIGHT = isMobile ? MATH_BOT_HEIGHT_MOBILE : MATH_BOT_HEIGHT_DESKTOP;
+            OBSTACLE_WIDTH = isMobile ? OBSTACLE_WIDTH_MOBILE : OBSTACLE_WIDTH_DESKTOP;
+            GAP_HEIGHT = isMobile ? GAP_HEIGHT_MOBILE : GAP_HEIGHT_DESKTOP;
+
+            // Ensure Math-Bot's CSS dimensions match the JS values for accurate collision
+            mathBot.style.width = `${MATH_BOT_WIDTH}px`;
+            mathBot.style.height = `${MATH_BOT_HEIGHT}px`;
+
+            // Ground height is fixed in CSS, grab its current computed height
+            GROUND_HEIGHT = ground.offsetHeight;
+        }
 
         // --- Audio Functions ---
         function playSound(audioElement) {
@@ -261,15 +421,15 @@
             // Randomly choose addition or subtraction
             if (Math.random() < 0.5) { // Addition
                 operator = '+';
-                // operand1 (1-8), operand2 (1 to 9-operand1), sum 1-9
-                num1 = Math.floor(Math.random() * 8) + 1; // num1 will be 1 to 8
-                num2 = Math.floor(Math.random() * (9 - num1)) + 1; // num2 will be 1 to (9 - num1)
+                // num1: 1-8, num2: 1 to (9 - num1) to ensure sum is 1-9
+                num1 = Math.floor(Math.random() * 8) + 1; // 1 to 8
+                num2 = Math.floor(Math.random() * (9 - num1)) + 1; // 1 to (9 - num1)
                 result = num1 + num2;
             } else { // Subtraction
                 operator = '-';
-                // operand1 (2-9), operand2 (1 to operand1-1), result 1-9
-                num1 = Math.floor(Math.random() * 8) + 2; // num1 will be 2 to 9
-                num2 = Math.floor(Math.random() * (num1 - 1)) + 1; // num2 will be 1 to (num1 - 1)
+                // num1: 2-9, num2: 1 to (num1 - 1) to ensure result is 1-9
+                num1 = Math.floor(Math.random() * 8) + 2; // 2 to 9
+                num2 = Math.floor(Math.random() * (num1 - 1)) + 1; // 1 to (num1 - 1)
                 result = num1 - num2;
             }
 
@@ -280,10 +440,11 @@
 
         // --- Obstacle Logic ---
         function createObstacle() {
+            // Ensure gap is within playable area and enough space for Math-Bot
             const minGapY = MATH_BOT_HEIGHT * 2; // Minimum space from top
-            const maxGapY = GAME_HEIGHT - GROUND_HEIGHT - (MATH_BOT_HEIGHT * 2) - GAP_HEIGHT; // Max space from bottom
+            const maxGapY = GAME_HEIGHT - GROUND_HEIGHT - (MATH_BOT_HEIGHT * 2) - GAP_HEIGHT; // Max gap top position from bottom
 
-            // Random vertical center of the gap (ensuring gap is fully within playable area)
+            // Random vertical center of the gap
             const gapTop = Math.floor(Math.random() * (maxGapY - minGapY + 1)) + minGapY;
 
             // Calculate heights for top and bottom parts of the obstacle
@@ -311,7 +472,7 @@
             obstacles.push({
                 x: obstacleX,
                 topHeight: topHeight,
-                bottomHeight: bottomHeight, // This is the actual height, not Y position
+                bottomHeight: bottomHeight, // This is the actual height of the bottom pipe
                 elementTop: topObstacleDiv,
                 elementBottom: bottomObstacleDiv,
                 passed: false // To track if Math-Bot has passed for scoring
@@ -431,19 +592,23 @@
             gameStarted = true;
             gameOver = false;
 
+            // Update constants based on current screen size
+            updateGameConstants();
+
             // Initial values
             mathBotY = GAME_HEIGHT / 2 - MATH_BOT_HEIGHT / 2;
             mathBotVelocity = 0;
             score = 0;
             obstacles = [];
             gameSpeed = 2; // Initial horizontal speed
-            gravity = 0.05; // *** REDUCED GRAVITY ***
-            flapStrength = .8; // *** ADJUSTED FLAP STRENGTH ***
-            downwardNudge = .25; // *** ADJUSTED DOWNWARD NUDGE ***
+            gravity = 0.05;
+            flapStrength = 8; // How much bot jumps with correct answer
+            downwardNudge = 0.25; // How much bot drops with incorrect answer
             lastObstacleSpawnTime = Date.now();
 
             scoreDisplay.textContent = `Score: ${score}`;
             mathBot.style.top = `${mathBotY}px`;
+            mathBot.style.left = `${GAME_WIDTH * 0.125}px`; // Keep bot at 1/8th width position
             gameOverScreen.classList.remove('show');
 
             // Remove any existing obstacles from previous game
@@ -471,23 +636,16 @@
             startGame();
         }
 
-        // --- Event Listeners ---
-        document.addEventListener('keydown', (e) => {
+        // --- Input Handling Logic ---
+        function handleAnswerInput(inputNumber) {
             if (gameOver) return; // Ignore input if game is over
-
-            const pressedKey = parseInt(e.key);
-
-            // Check if it's a number key between 1 and 9
-            if (isNaN(pressedKey) || pressedKey < 1 || pressedKey > 9) {
-                return; // Not a valid number key, ignore
-            }
 
             if (!gameStarted) {
                 startGame(); // Start game on the first valid key press
                 return;
             }
 
-            if (pressedKey === correctAnswer) {
+            if (inputNumber === correctAnswer) {
                 // Correct answer
                 mathBotVelocity = -flapStrength; // Upward boost
                 playSound(correctSound);
@@ -501,18 +659,43 @@
                 applyFlash('flash-red');
                 // Expression remains until correct answer
             }
+        }
+
+        // --- Event Listeners ---
+        document.addEventListener('keydown', (e) => {
+            const pressedKey = parseInt(e.key);
+            if (!isNaN(pressedKey) && pressedKey >= 1 && pressedKey <= 9) {
+                handleAnswerInput(pressedKey);
+            }
+        });
+
+        touchpadButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const value = parseInt(button.dataset.value);
+                handleAnswerInput(value);
+            });
         });
 
         restartButton.addEventListener('click', restartGame);
 
         // Initial setup on load (don't start the game until first key press)
         document.addEventListener('DOMContentLoaded', () => {
-            // Position Math-Bot initially
-            mathBotY = GAME_HEIGHT / 2 - MATH_BOT_HEIGHT / 2;
+            updateGameConstants(); // Set initial dimensions
+            mathBotY = GAME_HEIGHT / 2 - MATH_BOT_HEIGHT / 2; // Position Math-Bot initially
             mathBot.style.top = `${mathBotY}px`;
+            mathBot.style.left = `${GAME_WIDTH * 0.125}px`; // Keep bot at 1/8th width position
             // Display a welcome message
             expressionDisplay.textContent = "Press 1-9 to Start!";
             scoreDisplay.textContent = "Score: 0";
+        });
+
+        // Re-evaluate game constants on window resize to ensure responsiveness
+        window.addEventListener('resize', () => {
+            updateGameConstants();
+            // Reposition Math-Bot in case GAME_HEIGHT changed significantly
+            mathBotY = GAME_HEIGHT / 2 - MATH_BOT_HEIGHT / 2;
+            mathBot.style.top = `${mathBotY}px`;
+            mathBot.style.left = `${GAME_WIDTH * 0.125}px`;
         });
     </script>
 </body>
