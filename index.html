@@ -179,6 +179,7 @@
             z-index: 20;
             font-family: 'Press Start 2P', cursive;
             transition: background-color 0.2s, border-color 0.2s;
+            display: none; /* Hidden by default, shown when game starts */
         }
 
         #pause-button:hover {
@@ -476,6 +477,9 @@
 
                     <label for="input-maxObstacleClearance">Min Clearance Above Obstacle (pixels):</label>
                     <input type="number" id="input-maxObstacleClearance" step="10" value="180">
+
+                    <label for="input-collisionTolerance">Collision Tolerance (pixels):</label>
+                    <input type="number" id="input-collisionTolerance" step="1" value="15">
                 </form>
                 <div id="menu-buttons">
                     <button id="start-game-button" class="menu-button">Start Game</button>
@@ -488,7 +492,7 @@
             <button class="touchpad-button" data-value="1">1</button>
             <button class="touchpad-button" data-value="2">2</button>
             <button class="touchpad-button" data-value="3">3</button>
-            <button class="touchpad-value="4">4</button>
+            <button class="touchpad-button" data-value="4">4</button> <!-- Corrected data-value -->
             <button class="touchpad-button" data-value="5">5</button>
             <button class="touchpad-button" data-value="6">6</button>
             <button class="touchpad-button" data-value="7">7</button>
@@ -524,6 +528,7 @@
         const inputObstacleSpawnInterval = document.getElementById('input-obstacleSpawnInterval');
         const inputMinObstacleHeight = document.getElementById('input-minObstacleHeight');
         const inputMaxObstacleClearance = document.getElementById('input-maxObstacleClearance');
+        const inputCollisionTolerance = document.getElementById('input-collisionTolerance');
 
 
         // --- AudioContext Variables ---
@@ -545,13 +550,14 @@
         const REFERENCE_GAME_HEIGHT = 600;
 
         // Tunable game parameters with initial defaults (these are base values before scaling)
-        let baseGameSpeed = 30; // pixels per second
-        let baseGravity = 100; // pixels per second squared
+        let baseGameSpeed = 120; // pixels per second
+        let baseGravity = 500; // pixels per second squared
         let baseFlapStrength = 250; // pixels per second of upward velocity
         let baseDownwardNudge = 100; // pixels per second of downward velocity added
         let obstacleSpawnInterval = 2000; // milliseconds
         let minObstacleHeight = 50; // pixels
         let maxObstacleClearance = 180; // pixels (min space above obstacle)
+        let collisionTolerance = 15; // pixels (how much to shrink hitbox from each side)
 
 
         // Mobile specific constants for JS calculations (matching CSS where applicable)
@@ -783,20 +789,29 @@
                 return true;
             }
 
+            // Scale collision tolerance based on current game height
+            const heightScaleFactor = GAME_HEIGHT / REFERENCE_GAME_HEIGHT;
+            const scaledCollisionTolerance = collisionTolerance * heightScaleFactor;
+
             // Obstacle collision
+            // Adjust mathBotRect to be smaller by the collisionTolerance
             const mathBotRect = {
-                x: mathBot.offsetLeft,
-                y: mathBotY,
-                width: MATH_BOT_WIDTH,
-                height: MATH_BOT_HEIGHT
+                x: mathBot.offsetLeft + scaledCollisionTolerance,
+                y: mathBotY + scaledCollisionTolerance,
+                width: MATH_BOT_WIDTH - (2 * scaledCollisionTolerance),
+                height: MATH_BOT_HEIGHT - (2 * scaledCollisionTolerance)
             };
+
+            // Ensure hitbox dimensions don't become negative
+            if (mathBotRect.width <= 0) mathBotRect.width = 1;
+            if (mathBotRect.height <= 0) mathBotRect.height = 1;
 
             for (const obstacle of obstacles) {
                 const obstacleX = obstacle.x;
                 const obstacleWidth = OBSTACLE_WIDTH;
 
                 // Check for horizontal overlap
-                if (mathBotRect.x + mathBotRect.width > obstacleX && mathBotRect.x < obstacleX + obstacleWidth) {
+                if (mathBotRect.x < obstacleX + obstacleWidth && mathBotRect.x + mathBotRect.width > obstacleX) {
                     // Check for vertical overlap with the top of the bottom obstacle
                     if (mathBotRect.y + mathBotRect.height > (GAME_HEIGHT - GROUND_HEIGHT - obstacle.height)) {
                         return true;
@@ -876,7 +891,7 @@
             gameOverScreen.classList.remove('show');
             pauseOverlay.classList.remove('show');
             pauseButton.textContent = 'Pause';
-            pauseButton.style.display = 'block';
+            pauseButton.style.display = 'block'; // Show pause button when game starts
 
             // Hide start/settings menu
             startSettingsScreen.classList.add('hidden');
@@ -900,7 +915,7 @@
 
             finalScoreDisplay.textContent = `Score: ${score}`;
             gameOverScreen.classList.add('show');
-            pauseButton.style.display = 'none';
+            pauseButton.style.display = 'none'; // Hide pause button on game over
         }
 
         function restartGame() {
@@ -922,6 +937,7 @@
             
             // Hide game over screen
             gameOverScreen.classList.remove('show');
+            pauseButton.style.display = 'none'; // Ensure pause button is hidden on restart to menu
 
             // Ensure music is stopped from previous game
             stopMusic();
@@ -929,7 +945,7 @@
 
 
         function togglePause() {
-            if (!gameStarted || gameOver) return;
+            if (!gameStarted || gameOver) return; // Only allow pausing during an active game
 
             isPaused = !isPaused;
             if (isPaused) {
@@ -937,7 +953,7 @@
                 pauseButton.textContent = 'Resume';
                 pauseOverlay.classList.add('show');
                 stopMusic(); // Pause music
-                if (audioContext.state === 'running') {
+                if (audioContext && audioContext.state === 'running') { // Check audioContext exists
                     audioContext.suspend().catch(e => console.error("AudioContext suspend failed:", e));
                 }
 
@@ -953,10 +969,9 @@
                 updateGameConstants(); // Re-evaluate dimensions/params with new settings
 
                 // Resume AudioContext first if suspended
-                if (audioContext.state === 'suspended') {
+                if (audioContext && audioContext.state === 'suspended') { // Check audioContext exists
                     audioContext.resume().catch(e => console.error("AudioContext resume failed:", e));
                 }
-                // Don't reset lastFrameTime here, it's handled by gameLoop's initial check
                 animationFrameId = requestAnimationFrame(gameLoop); // Resume the game loop
                 pauseButton.textContent = 'Pause';
                 pauseOverlay.classList.remove('show');
@@ -976,6 +991,7 @@
             inputObstacleSpawnInterval.value = obstacleSpawnInterval;
             inputMinObstacleHeight.value = minObstacleHeight;
             inputMaxObstacleClearance.value = maxObstacleClearance;
+            inputCollisionTolerance.value = collisionTolerance; // New field
         }
 
         function readSettingsFromForm() {
@@ -986,15 +1002,17 @@
             obstacleSpawnInterval = parseInt(inputObstacleSpawnInterval.value);
             minObstacleHeight = parseInt(inputMinObstacleHeight.value);
             maxObstacleClearance = parseInt(inputMaxObstacleClearance.value);
+            collisionTolerance = parseInt(inputCollisionTolerance.value); // New field
 
             // Basic validation/clamping (optional but good practice)
             if (isNaN(baseGameSpeed) || baseGameSpeed <= 0) baseGameSpeed = 120;
             if (isNaN(baseGravity) || baseGravity < 0) baseGravity = 500;
             if (isNaN(baseFlapStrength) || baseFlapStrength <= 0) baseFlapStrength = 250;
-            if (isNaN(baseDownwardNudge) || baseDownwardNudge < 0) baseDownwardNudge = 100;
+            if (isNaN(baseDownwardNudge) || downwardNudge < 0) baseDownwardNudge = 100;
             if (isNaN(obstacleSpawnInterval) || obstacleSpawnInterval < 500) obstacleSpawnInterval = 2000;
             if (isNaN(minObstacleHeight) || minObstacleHeight < 10) minObstacleHeight = 50;
             if (isNaN(maxObstacleClearance) || maxObstacleClearance < 50) maxObstacleClearance = 180;
+            if (isNaN(collisionTolerance) || collisionTolerance < 0) collisionTolerance = 15; // Collision tolerance can be 0
         }
 
 
@@ -1002,11 +1020,12 @@
         function handleAnswerInput(inputNumber) {
             if (gameOver || isPaused) return;
 
-            // If game hasn't started, first number press will start it
+            // Game will only start via the "Start Game" button now.
+            // No auto-start from first input.
             if (!gameStarted && !startSettingsScreen.classList.contains('hidden')) {
-                 readSettingsFromForm(); // Apply settings on first key/touchpad press too
-                 startGame();
-                 return; // Exit after starting game, input will be processed in next frame
+                // If game hasn't started and menu is visible, ignore number inputs.
+                // The game starts from the button.
+                return;
             }
 
             const heightScaleFactor = GAME_HEIGHT / REFERENCE_GAME_HEIGHT;
@@ -1075,7 +1094,7 @@
 
             // Ensure start menu is visible
             startSettingsScreen.classList.remove('hidden');
-            pauseButton.style.display = 'block'; // Keep pause button visible, though it won't do much until game starts
+            // pauseButton.style.display is already set to 'none' in CSS and will be toggled by startGame
         });
 
         // Re-evaluate game constants on window resize to ensure responsiveness
