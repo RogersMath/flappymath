@@ -330,11 +330,12 @@
                     scoreDisplay.textContent = `Score: ${score}`;
                     obstacle.passed = true;
                     // Increase difficulty gradually
-                    if (score % 500 === 0 && gameSpeed < 5) { // Cap game speed at 5
+                    // Cap game speed at 5, gravity increases, flap strength slightly decreases
+                    if (score % 500 === 0 && gameSpeed < 5) {
                         gameSpeed += 0.2;
                         gravity += 0.02;
-                        flapStrength -= 0.5; // Make flapping slightly less effective, increasing challenge
-                        if (flapStrength < 5) flapStrength = 5; // Minimum flap strength
+                        flapStrength -= 0.3; // Less drastic reduction in flap strength
+                        if (flapStrength < 4) flapStrength = 4; // Minimum flap strength
                     }
                 }
             });
@@ -436,9 +437,9 @@
             score = 0;
             obstacles = [];
             gameSpeed = 2; // Initial horizontal speed
-            gravity = 0.5; // How fast Math-Bot falls
-            flapStrength = 9; // How much Math-Bot boosts up
-            downwardNudge = 2; // How much Math-Bot nudges down on incorrect
+            gravity = 0.25; // *** REDUCED GRAVITY ***
+            flapStrength = 7; // *** ADJUSTED FLAP STRENGTH ***
+            downwardNudge = 1.5; // *** ADJUSTED DOWNWARD NUDGE ***
             lastObstacleSpawnTime = Date.now();
 
             scoreDisplay.textContent = `Score: ${score}`;
