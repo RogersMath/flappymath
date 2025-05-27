@@ -497,7 +497,7 @@
         </div>
     </div>
 
-    <script>
+        <script>
         const gameContainer = document.getElementById('game-container');
         const mathBot = document.getElementById('math-bot');
         const expressionDisplay = document.getElementById('expression-display');
@@ -526,12 +526,6 @@
         const inputMaxObstacleClearance = document.getElementById('input-maxObstacleClearance');
 
 
-        // --- AudioContext Variables ---
-        let audioContext;
-        const audioBuffers = {}; // Stores decoded AudioBuffer objects
-        let musicSource = null; // Current AudioBufferSourceNode for background music
-        let musicGainNode = null; // GainNode for background music volume
-
         // Game constants (now tunable)
         let GAME_WIDTH;
         let GAME_HEIGHT;
@@ -556,8 +550,8 @@
 
         // Mobile specific constants for JS calculations (matching CSS where applicable)
         const MOBILE_MAX_WIDTH = 768; // Matches CSS media query breakpoint
-        const MATH_BOT_WIDTH_DESKTOP = 120;
-        const MATH_BOT_HEIGHT_DESKTOP = 90;
+        const MATH_BOT_WIDTH_DESKTOP = 120; // Corrected to match CSS
+        const MATH_BOT_HEIGHT_DESKTOP = 90; // Corrected to match CSS
         const OBSTACLE_WIDTH_DESKTOP = 80;
 
         const MATH_BOT_WIDTH_MOBILE = 65;
@@ -809,14 +803,15 @@
 
         // --- Game Loop ---
         function gameLoop(currentTime) {
+            // Ensure the game logic only runs if game is active and not paused
+            if (!gameStarted || gameOver || isPaused) {
+                lastFrameTime = currentTime; // Keep lastFrameTime updated even when paused/stopped
+                return;
+            }
+
             if (!lastFrameTime) lastFrameTime = currentTime; // Initialize lastFrameTime on the first call
             const deltaTime = (currentTime - lastFrameTime) / 1000; // Convert milliseconds to seconds
             lastFrameTime = currentTime;
-
-            if (gameOver || isPaused) {
-                lastFrameTime = currentTime; // Reset for when game resumes
-                return; // Exit if game is over or paused
-            }
 
             const heightScaleFactor = GAME_HEIGHT / REFERENCE_GAME_HEIGHT;
 
@@ -851,10 +846,15 @@
 
         // --- Game Control Functions ---
         function startGame() {
-            if (gameStarted) return;
+            if (gameStarted) return; // Prevent starting if already started
+            
+            // Ensure a clean state before starting
+            restartGame(); // Call restartGame to fully reset and clean up first
+            
+            // Now, initiate game-specific start logic
             gameStarted = true;
             gameOver = false;
-            isPaused = false;
+            isPaused = false; // Ensure not paused after restartGame might have set it temporarily
 
             initAudioContext(); // Ensure AudioContext is active
             audioContext.resume().catch(e => console.error("AudioContext resume failed on startGame:", e));
@@ -862,30 +862,30 @@
             // Update constants based on current screen size AND user inputs
             updateGameConstants();
 
-            // Initial values
+            // Initial positions and states for gameplay
             mathBotY = GAME_HEIGHT / 2 - MATH_BOT_HEIGHT / 2;
             mathBotVelocity = 0;
-            score = 0;
-            obstacles = [];
+            score = 0; // Score already reset by restartGame, but good to be explicit for flow
+            
             lastObstacleSpawnTime = Date.now();
-            lastFrameTime = 0; // Reset lastFrameTime for a clean start
+            lastFrameTime = 0; // Reset lastFrameTime for a clean start of the loop
 
             scoreDisplay.textContent = `Score: ${score}`;
             mathBot.style.top = `${mathBotY}px`;
-            mathBot.style.left = `${GAME_WIDTH * 0.125}px`;
+            mathBot.style.left = `${GAME_WIDTH * 0.125}px`; // Ensure bot is at start X position
+
+            // Hide UI elements that shouldn't be visible during gameplay
             gameOverScreen.classList.remove('show');
             pauseOverlay.classList.remove('show');
+            startSettingsScreen.classList.add('hidden'); // Hide start/settings menu
+
+            // Update pause button for gameplay state
             pauseButton.textContent = 'Pause';
             pauseButton.style.display = 'block';
 
-            // Hide start/settings menu
-            startSettingsScreen.classList.add('hidden');
-
-            // Remove any existing obstacles from previous game
-            document.querySelectorAll('.obstacle').forEach(el => el.remove());
-
+            // Generate initial expression and obstacle
             generateExpression();
-            createObstacle(); // Create the first obstacle
+            createObstacle();
 
             startMusic();
             animationFrameId = requestAnimationFrame(gameLoop); // Start the game loop
@@ -893,47 +893,83 @@
 
         function endGame() {
             gameOver = true;
-            gameStarted = false;
-            cancelAnimationFrame(animationFrameId);
+            gameStarted = false; // Game is no longer "started"
+            if (animationFrameId) { // Ensure animation frame is cancelled
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
             stopMusic();
             playSound('crashSound');
 
             finalScoreDisplay.textContent = `Score: ${score}`;
             gameOverScreen.classList.add('show');
-            pauseButton.style.display = 'none';
+            pauseButton.style.display = 'none'; // Hide pause button on game over
         }
 
         function restartGame() {
-            // Reset state
+            console.log("restartGame() called - Resetting game state.");
+
+            // Always stop the game loop if it's running
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null; // Clear the ID
+            }
+
+            // Reset all game state variables
+            gameStarted = false;
             gameOver = false;
-            gameStarted = false; // Set to false to allow startGame to run fully
-            isPaused = false; // Ensure not paused
-            // Re-show menu for new game setup
-            startSettingsScreen.classList.remove('hidden');
-            menuTitle.textContent = 'Flappy Equations'; // Reset title for new game
-            startGameButton.style.display = 'block';
-            applySettingsButton.style.display = 'none';
-            // Populate settings with current values
-            populateSettingsForm();
+            isPaused = false;
+            mathBotVelocity = 0; // Reset velocity
+            // Reset MathBot position relative to game height (updated by updateGameConstants)
+            updateGameConstants(); // Ensure dimensions are fresh before positioning
+            mathBotY = GAME_HEIGHT / 2 - MATH_BOT_HEIGHT / 2;
+            score = 0;
+            obstacles = []; // Clear obstacles array
+            lastObstacleSpawnTime = Date.now(); // Reset spawn timer
+            lastFrameTime = 0; // Reset last frame time for clean delta calculation
 
-            // Reset score and expression display immediately for aesthetic
+            // Clear any existing obstacles from the DOM
+            document.querySelectorAll('.obstacle').forEach(el => el.remove());
+
+            // Update UI elements to their initial state for the start screen
             scoreDisplay.textContent = 'Score: 0';
-            expressionDisplay.textContent = "Welcome to Flappy Equations!"; // Initial message for start screen
-            
-            // Hide game over screen
-            gameOverScreen.classList.remove('show');
+            expressionDisplay.textContent = "Welcome to Flappy Equations!";
+            mathBot.style.top = `${mathBotY}px`; // Apply reset position
+            mathBot.style.left = `${GAME_WIDTH * 0.125}px`; // Ensure horizontal position is also correct
 
-            // Ensure music is stopped from previous game
+            // Hide game over screen and pause overlay
+            gameOverScreen.classList.remove('show');
+            pauseOverlay.classList.remove('show');
+
+            // Show the start/settings menu
+            startSettingsScreen.classList.remove('hidden');
+            menuTitle.textContent = 'Flappy Equations'; // Reset menu title
+            startGameButton.style.display = 'block'; // Make Start Game button visible
+            applySettingsButton.style.display = 'none'; // Hide Apply Settings button
+            populateSettingsForm(); // Populate form with current settings
+
+            // Reset pause button state (it's visible but doesn't do much until game starts)
+            pauseButton.textContent = 'Pause';
+            pauseButton.style.display = 'block'; 
+
+            // Stop any background music
             stopMusic();
         }
 
 
         function togglePause() {
-            if (!gameStarted || gameOver) return;
+            // Guard clause: Only allow pausing/resuming if the game has started and is not over
+            if (!gameStarted || gameOver) {
+                // If game is over, and pause is pressed, effectively do nothing or handle restart?
+                // For now, if game is over, this button effectively disabled.
+                // If game hasn't started, also do nothing.
+                return; 
+            }
 
             isPaused = !isPaused;
             if (isPaused) {
-                cancelAnimationFrame(animationFrameId);
+                cancelAnimationFrame(animationFrameId); // Stop the game loop
+                animationFrameId = null; // Clear animation frame ID
                 pauseButton.textContent = 'Resume';
                 pauseOverlay.classList.add('show');
                 stopMusic(); // Pause music
@@ -944,11 +980,11 @@
                 // Show settings menu
                 startSettingsScreen.classList.remove('hidden');
                 menuTitle.textContent = 'Game Settings';
-                startGameButton.style.display = 'none';
-                applySettingsButton.style.display = 'block';
+                startGameButton.style.display = 'none'; // Hide Start Game button
+                applySettingsButton.style.display = 'block'; // Show Apply Settings & Resume button
                 populateSettingsForm(); // Load current values into form
             } else {
-                // Apply settings first
+                // Apply settings first when resuming
                 readSettingsFromForm();
                 updateGameConstants(); // Re-evaluate dimensions/params with new settings
 
@@ -956,7 +992,7 @@
                 if (audioContext.state === 'suspended') {
                     audioContext.resume().catch(e => console.error("AudioContext resume failed:", e));
                 }
-                // Don't reset lastFrameTime here, it's handled by gameLoop's initial check
+                
                 animationFrameId = requestAnimationFrame(gameLoop); // Resume the game loop
                 pauseButton.textContent = 'Pause';
                 pauseOverlay.classList.remove('show');
@@ -988,25 +1024,27 @@
             maxObstacleClearance = parseInt(inputMaxObstacleClearance.value);
 
             // Basic validation/clamping (optional but good practice)
-            if (isNaN(baseGameSpeed) || baseGameSpeed <= 0) baseGameSpeed = 120;
-            if (isNaN(baseGravity) || baseGravity < 0) baseGravity = 500;
-            if (isNaN(baseFlapStrength) || baseFlapStrength <= 0) baseFlapStrength = 250;
-            if (isNaN(baseDownwardNudge) || baseDownwardNudge < 0) baseDownwardNudge = 100;
-            if (isNaN(obstacleSpawnInterval) || obstacleSpawnInterval < 500) obstacleSpawnInterval = 2000;
-            if (isNaN(minObstacleHeight) || minObstacleHeight < 10) minObstacleHeight = 50;
-            if (isNaN(maxObstacleClearance) || maxObstacleClearance < 50) maxObstacleClearance = 180;
+            if (isNaN(baseGameSpeed) || baseGameSpeed <= 0) baseGameSpeed = 30; // Default if invalid
+            if (isNaN(baseGravity) || baseGravity < 0) baseGravity = 100; // Default if invalid
+            if (isNaN(baseFlapStrength) || baseFlapStrength <= 0) baseFlapStrength = 250; // Default if invalid
+            if (isNaN(baseDownwardNudge) || baseDownwardNudge < 0) baseDownwardNudge = 100; // Default if invalid
+            if (isNaN(obstacleSpawnInterval) || obstacleSpawnInterval < 500) obstacleSpawnInterval = 2000; // Min 0.5s interval
+            if (isNaN(minObstacleHeight) || minObstacleHeight < 10) minObstacleHeight = 50; // Min 10px
+            if (isNaN(maxObstacleClearance) || maxObstacleClearance < 50) maxObstacleClearance = 180; // Min 50px clearance
         }
 
 
         // --- Input Handling Logic ---
         function handleAnswerInput(inputNumber) {
-            if (gameOver || isPaused) return;
-
-            // If game hasn't started, first number press will start it
-            if (!gameStarted && !startSettingsScreen.classList.contains('hidden')) {
-                 readSettingsFromForm(); // Apply settings on first key/touchpad press too
-                 startGame();
-                 return; // Exit after starting game, input will be processed in next frame
+            if (gameOver || isPaused) {
+                // If game hasn't started yet and a number is pressed, start the game
+                if (!gameStarted && !startSettingsScreen.classList.contains('hidden')) {
+                    readSettingsFromForm(); // Apply settings on first key/touchpad press
+                    startGame();
+                    // Do not process input immediately after starting, let the game loop handle it
+                    return; 
+                }
+                return; // Ignore input if game is over or paused
             }
 
             const heightScaleFactor = GAME_HEIGHT / REFERENCE_GAME_HEIGHT;
@@ -1063,28 +1101,22 @@
                 loadAudio('./backgroundMusic.mp3', 'backgroundMusic') // User's local file
             ]);
 
-            updateGameConstants(); // Set initial dimensions
-            mathBotY = GAME_HEIGHT / 2 - MATH_BOT_HEIGHT / 2; // Position Math-Bot initially
-            mathBot.style.top = `${mathBotY}px`;
-            mathBot.style.left = `${GAME_WIDTH * 0.125}px`;
-            scoreDisplay.textContent = "Score: 0";
-            expressionDisplay.textContent = "Welcome to Flappy Equations!"; // Initial message for start screen
-
-            // Populate form with default values (which are the initial global values)
-            populateSettingsForm();
-
-            // Ensure start menu is visible
-            startSettingsScreen.classList.remove('hidden');
-            pauseButton.style.display = 'block'; // Keep pause button visible, though it won't do much until game starts
+            // Call restartGame to initialize all UI and game state to the starting menu
+            restartGame(); 
         });
 
         // Re-evaluate game constants on window resize to ensure responsiveness
         window.addEventListener('resize', () => {
-            updateGameConstants();
-            // Reposition Math-Bot in case GAME_HEIGHT changed significantly
-            mathBotY = GAME_HEIGHT / 2 - MATH_BOT_HEIGHT / 2;
-            mathBot.style.top = `${mathBotY}px`;
-            mathBot.style.left = `${GAME_WIDTH * 0.125}px`;
+            if (!gameStarted && !isPaused) { // Only adjust if not actively playing or paused in game
+                 updateGameConstants();
+                 // Reposition Math-Bot in case GAME_HEIGHT changed significantly
+                 mathBotY = GAME_HEIGHT / 2 - MATH_BOT_HEIGHT / 2;
+                 mathBot.style.top = `${mathBotY}px`;
+                 mathBot.style.left = `${GAME_WIDTH * 0.125}px`;
+            } else if (isPaused) { // If paused, just update constants but don't move bot
+                updateGameConstants();
+            }
+            // If gameStarted and not paused, gameLoop will handle position updates
         });
     </script>
 </body>
